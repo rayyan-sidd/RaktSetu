@@ -90,7 +90,7 @@ RaktSetu is architected to be developed, tested, and demonstrated entirely on a 
 ## Project Status & Development Roadmap
 
 - [x] **Step 1A: Repository Foundation** (Git, .gitignore, README, MIT License, Skeleton)
-- [ ] **Step 1B: Backend Scaffolding & Healthcheck** (FastAPI app, Pydantic models, tests)
+- [x] **Step 1B: Backend Scaffolding & Healthcheck** (FastAPI app, Pydantic schemas, healthcheck endpoint, automated tests)
 - [ ] **Step 1C: Frontend Scaffolding** (Vite + React + TypeScript + Tailwind CSS)
 - [ ] **Step 2: Core Data Models & Medical Compatibility Engine** (ABO/Rh logic, unit tests)
 - [ ] **Step 3: Blood Bank Discovery & Freshness Engine** (Delhi & Lucknow seed data, TinyFish client)
@@ -98,6 +98,32 @@ RaktSetu is architected to be developed, tested, and demonstrated entirely on a 
 - [ ] **Step 5: AI Triage Agent** (Gemma 4 integration + deterministic fallback)
 - [ ] **Step 6: Unified UI Dashboard** (Emergency search, live freshness indicators, donor portal)
 - [ ] **Step 7: Verification, Documentation & Open-Source Release**
+
+---
+
+## Local Backend Setup & Testing
+
+### 1. Environment Setup
+Create the virtual environment and install dependencies:
+```bash
+# Create virtual environment
+python -m venv .venv
+
+# Install dependencies (Windows PowerShell)
+.\.venv\Scripts\python.exe -m pip install -r backend/requirements.txt
+```
+
+### 2. Run Automated Tests
+```bash
+.\.venv\Scripts\python.exe -m pytest backend/tests -v
+```
+
+### 3. Start Local Development Server
+```bash
+.\.venv\Scripts\python.exe -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000
+```
+- Health Endpoint: [http://127.0.0.1:8000/api/health](http://127.0.0.1:8000/api/health)
+- Interactive API Documentation (Swagger UI): [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
 
 ---
 
