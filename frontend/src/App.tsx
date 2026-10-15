@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import {
   Sun,
   Moon,
@@ -14,8 +14,20 @@ import {
   ExternalLink,
   ChevronRight,
   Database,
-  Radio,
+  Sparkles,
 } from 'lucide-react'
+
+const HeroDroplet = lazy(() => import('./components/HeroDroplet'))
+
+function DropletFallback() {
+  return (
+    <div className="w-full h-[360px] sm:h-[440px] lg:h-[480px] flex items-center justify-center">
+      <div className="w-40 h-40 sm:w-48 sm:h-48 rounded-full bg-gradient-to-tr from-[#8C1024] via-[#B91C35] to-[#E11D48] shadow-xl shadow-[#B91C35]/25 flex items-center justify-center animate-pulse">
+        <Droplet className="w-14 h-14 text-white/90 fill-white/80" />
+      </div>
+    </div>
+  )
+}
 
 // Blood Groups supported
 const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] as const
@@ -182,11 +194,11 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[var(--bg-page)] text-[var(--text-primary)] transition-colors duration-200 font-sans selection:bg-[#B91C35]/15 selection:text-[#B91C35]">
-      {/* Top Banner: Ethical Disclaimer */}
-      <div className="bg-[#B91C35] text-white text-xs py-1.5 px-4 text-center font-medium tracking-wide flex items-center justify-center gap-2">
-        <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+      {/* Top Banner: Restrained, Slim Prototype Notice */}
+      <div className="bg-[#142433] text-stone-300 text-[11px] py-1 px-4 text-center font-medium tracking-wide flex items-center justify-center gap-2 border-b border-[#23394E]">
+        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
         <span>
-          <strong>Hackathon Prototype Notice:</strong> All data shown is synthetic demonstration data. Live hospital feeds, Telegram notifications, and AI integrations are in progress and not connected.
+          <strong>Prototype Notice:</strong> Demonstrating planned blood discovery and coordination. All stock data is simulated; live external integrations are not connected.
         </span>
       </div>
 
@@ -195,48 +207,47 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between">
           {/* Logo & Tagline */}
           <div className="flex items-center gap-3">
-            <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-[#B91C35] to-[#8C1024] text-white shadow-md shadow-[#B91C35]/20">
+            <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-[#B91C35] to-[#8C1024] text-white shadow-md shadow-[#B91C35]/25">
               <Droplet className="w-5 h-5 fill-white text-white" />
-              <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-amber-500 rounded-full border-2 border-[var(--bg-surface)]" title="Prototype Mode" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-xl font-bold tracking-tight text-[var(--text-primary)]">
+                <span className="text-xl font-extrabold tracking-tight text-[var(--text-primary)]">
                   RaktSetu
                 </span>
-                <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-[#FFF1F2] dark:bg-[#B91C35]/20 text-[#B91C35] border border-[#B91C35]/20">
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#FFF1F2] dark:bg-[#B91C35]/25 text-[#B91C35] border border-[#B91C35]/25">
                   रक्तसेतु
                 </span>
               </div>
-              <p className="text-xs text-[var(--text-secondary)] hidden sm:block">
+              <p className="text-[11px] text-[var(--text-secondary)] font-medium hidden sm:block">
                 Bridging the gap between need and help.
               </p>
             </div>
           </div>
 
-          {/* Center Navigation Links (Informational) */}
-          <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-[var(--text-secondary)]">
+          {/* Center Navigation Links (Editorial Minimalist) */}
+          <nav className="hidden md:flex items-center gap-7 text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">
             <a href="#discovery" className="hover:text-[#B91C35] transition-colors">
-              Simulated Discovery
-            </a>
-            <a href="#safeguards" className="hover:text-[#B91C35] transition-colors">
-              Safeguards & Disclaimers
+              Discovery Console
             </a>
             <a href="#pillars" className="hover:text-[#B91C35] transition-colors">
               Architecture Plan
             </a>
-            <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+            <a href="#safeguards" className="hover:text-[#B91C35] transition-colors">
+              Safety & Ethics
+            </a>
+            <span className="inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 normal-case font-medium">
               <MapPin className="w-3 h-3 text-[#B91C35]" />
-              Target Cities: Delhi & Lucknow
+              Delhi & Lucknow
             </span>
           </nav>
 
-          {/* Right Controls: Theme Toggle & Status */}
+          {/* Right Controls: Theme Toggle & GitHub */}
           <div className="flex items-center gap-3">
             <button
               onClick={toggleTheme}
               aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
-              className="p-2.5 rounded-xl border border-[var(--border-main)] bg-[var(--bg-elevated)] text-[var(--text-primary)] hover:border-[#B91C35]/50 transition-all focus:outline-none focus:ring-2 focus:ring-[#B91C35]/50 cursor-pointer"
+              className="p-2 rounded-xl border border-[var(--border-main)] bg-[var(--bg-elevated)] text-[var(--text-primary)] hover:border-[#B91C35]/50 transition-all focus:outline-none focus:ring-2 focus:ring-[#B91C35]/50 cursor-pointer"
             >
               {theme === 'light' ? (
                 <Moon className="w-4 h-4 text-slate-700" />
@@ -249,7 +260,7 @@ export default function App() {
               href="https://github.com/rayyan-sidd/RaktSetu"
               target="_blank"
               rel="noopener noreferrer"
-              className="hidden sm:inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-xl bg-[#142433] dark:bg-white text-white dark:text-[#142433] hover:opacity-90 transition-opacity"
+              className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-xl bg-[#142433] dark:bg-white text-white dark:text-[#142433] hover:opacity-90 transition-opacity shadow-sm"
             >
               <span>GitHub</span>
               <ExternalLink className="w-3.5 h-3.5" />
@@ -258,120 +269,135 @@ export default function App() {
         </div>
       </header>
 
-      {/* Hero Section */}
-      <section className="relative overflow-hidden pt-12 pb-16 lg:pt-20 lg:pb-24 border-b border-[var(--border-main)]">
-        {/* Soft Background Radial Glows */}
-        <div className="absolute top-10 left-1/2 -translate-x-1/2 w-[600px] h-[350px] bg-gradient-to-tr from-[#B91C35]/10 via-[#FFF1F2]/20 dark:via-[#B91C35]/5 to-transparent blur-3xl pointer-events-none -z-10" />
+      {/* Hero Section — Art-Directed Editorial Layout */}
+      <section className="relative overflow-hidden pt-8 pb-14 lg:pt-14 lg:pb-20 border-b border-[var(--border-main)]">
+        {/* Ambient Soft Blush Radial Lighting */}
+        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[750px] h-[400px] bg-gradient-to-tr from-[#B91C35]/10 via-[#FFF1F2]/20 dark:via-[#B91C35]/6 to-transparent blur-3xl pointer-events-none -z-10" />
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-            {/* Left Column: Headlines & Call to Action */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
+            {/* Left Column: Headline & Elevated Discovery Console */}
             <div className="lg:col-span-7 space-y-6 text-left">
               {/* Badge */}
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#FFF1F2] dark:bg-[#B91C35]/15 border border-[#B91C35]/25 text-[#B91C35] text-xs font-semibold tracking-wide">
-                <span className="w-2 h-2 rounded-full bg-[#B91C35] animate-pulse" />
-                <span>Open-Source Hackathon Prototype • Delhi & Lucknow Scope</span>
+              <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#FFF1F2] dark:bg-[#B91C35]/20 border border-[#B91C35]/25 text-[#B91C35] text-xs font-bold tracking-wide">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#B91C35] animate-pulse" />
+                <span>RaktSetu Prototype • Delhi & Lucknow Initiative</span>
               </div>
 
-              {/* Main Headline */}
-              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-[var(--text-primary)] leading-[1.12]">
-                Bridging the gap between{' '}
+              {/* Headline in Three Deliberate Lines */}
+              <h1 className="text-4xl sm:text-5xl lg:text-[3.65rem] font-extrabold tracking-[-0.035em] text-[var(--text-primary)] leading-[1.06]">
+                Bridging the gap <br className="hidden sm:inline" />
                 <span className="bg-gradient-to-r from-[#B91C35] via-[#D32F4C] to-[#E11D48] bg-clip-text text-transparent">
-                  urgent need
-                </span>{' '}
+                  between urgent need
+                </span> <br className="hidden sm:inline" />
                 and voluntary help.
               </h1>
 
-              {/* Sub-paragraph */}
-              <p className="text-base sm:text-lg text-[var(--text-secondary)] leading-relaxed max-w-2xl">
-                RaktSetu is an early-stage prototype designing transparent, source-attributed blood discovery for{' '}
-                <strong className="text-[var(--text-primary)]">Delhi</strong> and{' '}
-                <strong className="text-[var(--text-primary)]">Lucknow</strong>, alongside an architectural model for privacy-preserving voluntary donor coordination.
+              {/* Subtitle */}
+              <p className="text-sm sm:text-base text-[var(--text-secondary)] leading-relaxed max-w-xl font-normal">
+                An open-source coordination platform designing transparent, source-attributed blood discovery for Delhi and Lucknow, paired with an opt-in voluntary donor notification model.
               </p>
 
-              {/* Scope & Architecture Pillars */}
-              <div className="grid grid-cols-3 gap-4 pt-2 max-w-lg border-t border-[var(--border-main)]">
+              {/* Elevated Discovery Console in Initial Viewport */}
+              <div className="bg-[var(--bg-surface)] border border-[var(--border-main)] rounded-2xl p-5 shadow-sm space-y-3.5 max-w-xl">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[#B91C35]">
+                    <Search className="w-3.5 h-3.5" />
+                    <span>Quick Discovery</span>
+                  </div>
+
+                  {/* City Selector Pills */}
+                  <div className="flex items-center gap-1 bg-[var(--bg-elevated)] p-1 rounded-xl border border-[var(--border-main)]">
+                    {(['Delhi', 'Lucknow'] as City[]).map(city => (
+                      <button
+                        key={city}
+                        onClick={() => setSelectedCity(city)}
+                        className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          selectedCity === city
+                            ? 'bg-[#B91C35] text-white shadow-sm'
+                            : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                        }`}
+                      >
+                        {city}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Blood Group Chips */}
                 <div>
-                  <div className="text-xl sm:text-2xl font-bold text-[var(--text-primary)]">Delhi & LKO</div>
-                  <div className="text-xs text-[var(--text-secondary)]">Target Initial Scope</div>
+                  <label className="block text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider mb-1.5">
+                    Select Blood Group:
+                  </label>
+                  <div className="grid grid-cols-4 sm:grid-cols-8 gap-1.5">
+                    {BLOOD_GROUPS.map(group => {
+                      const isSelected = selectedGroup === group
+                      return (
+                        <button
+                          key={group}
+                          onClick={() => setSelectedGroup(group)}
+                          className={`py-1.5 px-2 rounded-xl font-bold text-xs border transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-[#B91C35] text-white border-[#B91C35] shadow-sm shadow-[#B91C35]/30 scale-102'
+                              : 'bg-[var(--bg-elevated)] text-[var(--text-primary)] border-[var(--border-main)] hover:border-[#B91C35]/40'
+                          }`}
+                        >
+                          {group}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                <a
+                  href="#discovery"
+                  className="w-full py-2.5 rounded-xl bg-[#B91C35] hover:bg-[#A0162D] text-white font-bold text-xs flex items-center justify-center gap-2 transition-colors shadow-md shadow-[#B91C35]/25"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Inspect Sample Records for {selectedCity} ({selectedGroup})</span>
+                </a>
+              </div>
+
+              {/* Hierarchy Metric Cards */}
+              <div className="grid grid-cols-3 gap-6 pt-2 max-w-xl border-t border-[var(--border-main)]">
+                <div>
+                  <div className="text-xl font-extrabold text-[var(--text-primary)] tracking-tight">Delhi & LKO</div>
+                  <div className="text-xs text-[var(--text-secondary)] font-medium">Initial Scope</div>
                 </div>
                 <div>
-                  <div className="text-xl sm:text-2xl font-bold text-[#B91C35]">8 Groups</div>
-                  <div className="text-xs text-[var(--text-secondary)]">ABO & Rh Tracked</div>
+                  <div className="text-xl font-extrabold text-[#B91C35] tracking-tight">8 Groups</div>
+                  <div className="text-xs text-[var(--text-secondary)] font-medium">ABO / Rh Tracked</div>
                 </div>
                 <div>
-                  <div className="text-xl sm:text-2xl font-bold text-amber-600 dark:text-amber-400">Opt-In</div>
-                  <div className="text-xs text-[var(--text-secondary)]">Mandatory Consent</div>
+                  <div className="text-xl font-extrabold text-amber-600 dark:text-amber-400 tracking-tight">Opt-In</div>
+                  <div className="text-xs text-[var(--text-secondary)] font-medium">Planned Consent</div>
                 </div>
               </div>
             </div>
 
-            {/* Right Column: 3D Blood-Drop & Connected Network Visual */}
+            {/* Right Column: 3D Sculptural Ruby Droplet with Balanced Floating Cards */}
             <div className="lg:col-span-5 flex justify-center relative">
-              <div className="relative w-72 h-72 sm:w-88 sm:h-88 flex items-center justify-center">
-                {/* Outer Glow Halo */}
-                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-[#B91C35]/25 to-rose-300/10 dark:from-[#B91C35]/35 dark:to-transparent blur-2xl animate-pulse-glow" />
+              <div className="relative w-full max-w-[440px] flex items-center justify-center">
+                {/* 3D Canvas Scene with Suspense */}
+                <Suspense fallback={<DropletFallback />}>
+                  <HeroDroplet isDark={theme === 'dark'} />
+                </Suspense>
 
-                {/* Orbiting SVG Network Rings */}
-                <svg
-                  className="absolute inset-0 w-full h-full text-slate-300 dark:text-slate-700 pointer-events-none"
-                  viewBox="0 0 350 350"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <circle cx="175" cy="175" r="140" stroke="currentColor" strokeWidth="1" strokeDasharray="4 6" opacity="0.6" />
-                  <circle cx="175" cy="175" r="105" stroke="currentColor" strokeWidth="1.2" opacity="0.4" />
-                  <circle cx="175" cy="175" r="70" stroke="currentColor" strokeWidth="1" strokeDasharray="3 3" opacity="0.5" />
-
-                  {/* Network Ray Lines */}
-                  <line x1="175" y1="175" x2="310" y2="120" stroke="#B91C35" strokeWidth="1.5" strokeOpacity="0.4" />
-                  <line x1="175" y1="175" x2="60" y2="240" stroke="#B91C35" strokeWidth="1.5" strokeOpacity="0.4" />
-                  <line x1="175" y1="175" x2="260" y2="270" stroke="#15803D" strokeWidth="1.5" strokeOpacity="0.4" />
-                </svg>
-
-                {/* Central 3D Crimson Teardrop Structure */}
-                <div className="relative z-10 w-44 h-44 sm:w-52 sm:h-52 rounded-full flex items-center justify-center animate-float-slow">
-                  {/* Outer Depth Glass Ring */}
-                  <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-[#8C1024] via-[#B91C35] to-[#E11D48] shadow-2xl shadow-[#B91C35]/40 flex items-center justify-center p-2">
-                    {/* Inner Refraction Core */}
-                    <div className="w-full h-full rounded-full bg-gradient-to-b from-[#B91C35] via-[#8C1024] to-[#5C0A17] flex flex-col items-center justify-center relative overflow-hidden border border-white/20">
-                      {/* Specular Highlight Sheen */}
-                      <div className="absolute top-2 left-6 w-16 h-8 bg-white/30 rounded-full blur-[2px] -rotate-35 pointer-events-none" />
-                      <div className="absolute bottom-4 right-6 w-10 h-4 bg-rose-400/20 rounded-full blur-[4px] pointer-events-none" />
-
-                      {/* Teardrop Icon Symbol */}
-                      <Droplet className="w-16 h-16 text-white drop-shadow-md fill-white/90" />
-                      <span className="text-[10px] font-bold tracking-widest uppercase text-white/90 mt-1">
-                        RaktSetu
-                      </span>
-                    </div>
+                {/* Floating Telemetry Card 1 (Top-Right: Anchored without overlap) */}
+                <div className="absolute top-4 right-1 sm:right-3 z-20 bg-[var(--bg-surface)]/92 border border-[var(--border-main)] rounded-2xl p-3 shadow-lg backdrop-blur-md flex items-center gap-2.5 max-w-[200px]">
+                  <div className="w-2 h-2 rounded-full bg-amber-500 animate-ping shrink-0" />
+                  <div className="text-left">
+                    <p className="text-[11px] font-bold text-[var(--text-primary)] leading-tight">Simulated Feed</p>
+                    <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">Demo Records Only</p>
                   </div>
                 </div>
 
-                {/* Floating Telemetry Badge 1: Mock Data Indicator */}
-                <div className="absolute -top-2 right-4 z-20 bg-[var(--bg-surface)] border border-[var(--border-main)] rounded-xl px-3 py-2 shadow-lg backdrop-blur-md flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
+                {/* Floating Telemetry Card 2 (Bottom-Left: Anchored without overlap) */}
+                <div className="absolute bottom-4 left-1 sm:left-3 z-20 bg-[var(--bg-surface)]/92 border border-[var(--border-main)] rounded-2xl p-3 shadow-lg backdrop-blur-md flex items-center gap-2.5 max-w-[210px]">
+                  <ShieldCheck className="w-4 h-4 text-[#64748B] shrink-0" />
                   <div className="text-left">
-                    <p className="text-[10px] font-bold text-[var(--text-primary)]">Demo Data Only</p>
-                    <p className="text-[9px] text-amber-600 dark:text-amber-400 font-medium">Not Real Blood Stock</p>
-                  </div>
-                </div>
-
-                {/* Floating Telemetry Badge 2: Integration Status */}
-                <div className="absolute -bottom-3 left-4 z-20 bg-[var(--bg-surface)] border border-[var(--border-main)] rounded-xl px-3 py-2 shadow-lg backdrop-blur-md flex items-center gap-2">
-                  <Radio className="w-3.5 h-3.5 text-[#B91C35]" />
-                  <div className="text-left">
-                    <p className="text-[10px] font-bold text-[var(--text-primary)]">External Sync</p>
-                    <p className="text-[9px] text-[var(--text-secondary)]">Disconnected in Prototype</p>
-                  </div>
-                </div>
-
-                {/* Floating Telemetry Badge 3: Privacy Relay Specification */}
-                <div className="absolute top-1/2 -left-6 -translate-y-1/2 z-20 bg-[var(--bg-surface)] border border-[var(--border-main)] rounded-xl px-3 py-2 shadow-lg backdrop-blur-md hidden sm:flex items-center gap-2">
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                  <div className="text-left">
-                    <p className="text-[10px] font-bold text-[var(--text-primary)]">Zero Phone Leaks</p>
-                    <p className="text-[9px] text-emerald-600 dark:text-emerald-400 font-medium">Planned Telegram Relay</p>
+                    <p className="text-[11px] font-bold text-[var(--text-primary)] leading-tight">Privacy-First Relay</p>
+                    <p className="text-[10px] text-[var(--text-secondary)] font-medium">Planned Telegram Model</p>
                   </div>
                 </div>
               </div>
@@ -381,18 +407,18 @@ export default function App() {
       </section>
 
       {/* Discovery Interactive Widget */}
-      <section id="discovery" className="py-12 lg:py-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="bg-[var(--bg-surface)] border border-[var(--border-main)] rounded-2xl p-6 sm:p-8 shadow-sm">
+      <section id="discovery" className="py-14 lg:py-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="bg-[var(--bg-surface)] border border-[var(--border-main)] rounded-3xl p-6 sm:p-10 shadow-sm">
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-8 border-b border-[var(--border-main)]">
             <div>
-              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#B91C35]">
-                <Search className="w-3.5 h-3.5" />
+              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#B91C35]">
+                <Search className="w-4 h-4" />
                 <span>Simulated Discovery Console</span>
               </div>
-              <h2 className="text-2xl sm:text-3xl font-bold text-[var(--text-primary)] mt-1">
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-[var(--text-primary)] mt-1.5 tracking-tight">
                 Explore Sample Blood Availability Records
               </h2>
-              <p className="text-sm text-[var(--text-secondary)] mt-1">
+              <p className="text-sm text-[var(--text-secondary)] mt-1.5 max-w-2xl leading-relaxed">
                 Filter mock records by target city and ABO/Rh group to preview how source attribution, timestamps, and verification badges will be displayed.
               </p>
             </div>
@@ -403,7 +429,7 @@ export default function App() {
                 <button
                   key={city}
                   onClick={() => setSelectedCity(city)}
-                  className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  className={`px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                     selectedCity === city
                       ? 'bg-[#B91C35] text-white shadow-sm'
                       : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
@@ -417,7 +443,7 @@ export default function App() {
 
           {/* Blood Group Selector Chips */}
           <div className="pt-6">
-            <label className="block text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider mb-3">
+            <label className="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-3">
               Select Blood Group:
             </label>
             <div className="grid grid-cols-4 sm:grid-cols-8 gap-2 sm:gap-3">
@@ -441,8 +467,8 @@ export default function App() {
           </div>
 
           {/* Voluntary Donor Alert Checkbox (Simulated) */}
-          <div className="mt-6 pt-4 border-t border-[var(--border-main)] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <label className="flex items-center gap-2.5 cursor-pointer text-xs sm:text-sm text-[var(--text-secondary)]">
+          <div className="mt-8 pt-5 border-t border-[var(--border-main)] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <label className="flex items-center gap-3 cursor-pointer text-xs sm:text-sm text-[var(--text-secondary)]">
               <input
                 type="checkbox"
                 checked={showConsentDonorAlert}
@@ -454,7 +480,7 @@ export default function App() {
               </span>
             </label>
 
-            <div className="text-xs text-[var(--text-secondary)] flex items-center gap-1.5">
+            <div className="text-xs text-[var(--text-secondary)] flex items-center gap-1.5 font-medium">
               <Database className="w-3.5 h-3.5 text-amber-500" />
               <span>All records below are synthetic demo data • External APIs not connected</span>
             </div>
@@ -464,46 +490,46 @@ export default function App() {
         {/* Results Grid */}
         <div className="mt-8 space-y-4">
           <div className="flex items-center justify-between px-1">
-            <h3 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
+            <h3 className="text-sm font-bold text-[var(--text-primary)] flex items-center gap-2">
               <span>Sample records for {selectedCity} ({selectedGroup})</span>
               <span className="text-xs font-normal text-[var(--text-secondary)]">
                 ({filteredBanks.length} demo items)
               </span>
             </h3>
-            <span className="text-xs text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1">
+            <span className="text-xs text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1">
               <AlertTriangle className="w-3.5 h-3.5" />
               Simulated demonstration records only
             </span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {filteredBanks.map(bank => (
               <div
                 key={bank.id}
-                className="bg-[var(--bg-surface)] border border-[var(--border-main)] rounded-xl p-5 hover:border-[#B91C35]/40 transition-all shadow-sm hover:shadow-md flex flex-col justify-between"
+                className="bg-[var(--bg-surface)] border border-[var(--border-main)] rounded-2xl p-6 hover:border-[#B91C35]/50 transition-all shadow-sm hover:shadow-md flex flex-col justify-between"
               >
-                <div className="space-y-2.5">
+                <div className="space-y-3">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <h4 className="font-bold text-base text-[var(--text-primary)] leading-snug">
+                      <h4 className="font-extrabold text-base text-[var(--text-primary)] leading-snug">
                         {bank.name}
                       </h4>
-                      <p className="text-xs text-[var(--text-secondary)] flex items-center gap-1 mt-0.5">
-                        <MapPin className="w-3 h-3 text-[#B91C35]" />
+                      <p className="text-xs text-[var(--text-secondary)] flex items-center gap-1.5 mt-1 font-medium">
+                        <MapPin className="w-3.5 h-3.5 text-[#B91C35]" />
                         {bank.locality} • ~{bank.distanceKm} km (Sample distance)
                       </p>
                     </div>
 
                     {/* Blood Group Pill */}
-                    <span className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-[#FFF1F2] dark:bg-[#B91C35]/20 text-[#B91C35] font-extrabold text-sm border border-[#B91C35]/30">
+                    <span className="inline-flex items-center justify-center w-11 h-11 rounded-xl bg-[#FFF1F2] dark:bg-[#B91C35]/25 text-[#B91C35] font-extrabold text-base border border-[#B91C35]/35 shadow-sm">
                       {bank.bloodGroup}
                     </span>
                   </div>
 
                   {/* Stock & Freshness Data Strip */}
-                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[var(--border-main)]">
+                  <div className="grid grid-cols-2 gap-3 pt-3 border-t border-[var(--border-main)]">
                     <div>
-                      <span className="text-[11px] text-[var(--text-secondary)] block">
+                      <span className="text-[11px] font-semibold text-[var(--text-secondary)] block uppercase tracking-wider">
                         Sample Reported Units:
                       </span>
                       <span className="text-sm font-bold text-[var(--text-primary)]">
@@ -511,11 +537,11 @@ export default function App() {
                       </span>
                     </div>
                     <div>
-                      <span className="text-[11px] text-[var(--text-secondary)] block">
+                      <span className="text-[11px] font-semibold text-[var(--text-secondary)] block uppercase tracking-wider">
                         Timestamp Display:
                       </span>
-                      <span className="text-xs font-medium text-[var(--text-primary)] flex items-center gap-1">
-                        <Clock className="w-3 h-3 text-slate-400" />
+                      <span className="text-xs font-semibold text-[var(--text-primary)] flex items-center gap-1.5 mt-0.5">
+                        <Clock className="w-3.5 h-3.5 text-slate-400" />
                         {bank.freshness}
                       </span>
                     </div>
@@ -523,11 +549,11 @@ export default function App() {
                 </div>
 
                 {/* Footer Tag Strip */}
-                <div className="mt-4 pt-3 border-t border-[var(--border-main)] flex items-center justify-between text-xs">
-                  <span className="text-[11px] text-[var(--text-secondary)] bg-[var(--bg-elevated)] px-2 py-0.5 rounded border border-[var(--border-main)]">
+                <div className="mt-5 pt-3.5 border-t border-[var(--border-main)] flex items-center justify-between text-xs">
+                  <span className="text-[11px] font-medium text-[var(--text-secondary)] bg-[var(--bg-elevated)] px-2.5 py-1 rounded-lg border border-[var(--border-main)]">
                     {bank.source}
                   </span>
-                  <span className="text-[11px] font-medium text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 px-2 py-0.5 rounded flex items-center gap-1">
+                  <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 px-2.5 py-1 rounded-lg flex items-center gap-1">
                     <AlertTriangle className="w-3 h-3" />
                     {bank.verificationStatus}
                   </span>
@@ -539,25 +565,25 @@ export default function App() {
       </section>
 
       {/* 3 Core Architecture Pillars (Design Specifications) */}
-      <section id="pillars" className="py-12 lg:py-16 border-t border-[var(--border-main)] bg-[var(--bg-elevated)]/50">
+      <section id="pillars" className="py-16 lg:py-24 border-t border-[var(--border-main)] bg-[var(--bg-elevated)]/50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center max-w-2xl mx-auto mb-12">
+          <div className="text-center max-w-2xl mx-auto mb-14">
             <span className="text-xs font-bold uppercase tracking-wider text-[#B91C35]">
               System Architecture
             </span>
-            <h2 className="text-3xl font-extrabold text-[var(--text-primary)] mt-1">
+            <h2 className="text-3xl sm:text-4xl font-extrabold text-[var(--text-primary)] mt-1.5 tracking-tight">
               Planned RaktSetu Workflow
             </h2>
-            <p className="text-sm text-[var(--text-secondary)] mt-2">
-              Architecture specifications for transparent discovery, donor consent, and human verification.
+            <p className="text-sm sm:text-base text-[var(--text-secondary)] mt-2 leading-relaxed">
+              Architecture specifications for transparent discovery, donor consent, and human verification before dispatch.
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Pillar 1 */}
-            <div className="bg-[var(--bg-surface)] border border-[var(--border-main)] rounded-2xl p-6 shadow-sm hover:border-[#B91C35]/50 transition-all flex flex-col justify-between">
+            <div className="bg-[var(--bg-surface)] border border-[var(--border-main)] rounded-2xl p-7 shadow-sm hover:border-[#B91C35]/50 transition-all flex flex-col justify-between">
               <div>
-                <div className="w-12 h-12 rounded-xl bg-[#FFF1F2] dark:bg-[#B91C35]/20 text-[#B91C35] flex items-center justify-center font-bold mb-4">
+                <div className="w-12 h-12 rounded-xl bg-[#FFF1F2] dark:bg-[#B91C35]/20 text-[#B91C35] flex items-center justify-center font-bold mb-5">
                   <Database className="w-6 h-6" />
                 </div>
                 <h3 className="text-lg font-bold text-[var(--text-primary)] mb-2">
@@ -567,16 +593,16 @@ export default function App() {
                   Designed to ingest reported data feeds with strict freshness timestamps, ensuring caregivers and patients see exactly when and where data was reported before contacting facilities.
                 </p>
               </div>
-              <div className="mt-6 pt-4 border-t border-[var(--border-main)] text-xs text-[#B91C35] font-semibold flex items-center gap-1">
+              <div className="mt-6 pt-4 border-t border-[var(--border-main)] text-xs text-[#B91C35] font-bold flex items-center gap-1">
                 <span>Planned Ingestion Engine</span>
                 <ChevronRight className="w-3.5 h-3.5" />
               </div>
             </div>
 
             {/* Pillar 2 */}
-            <div className="bg-[var(--bg-surface)] border border-[var(--border-main)] rounded-2xl p-6 shadow-sm hover:border-[#B91C35]/50 transition-all flex flex-col justify-between">
+            <div className="bg-[var(--bg-surface)] border border-[var(--border-main)] rounded-2xl p-7 shadow-sm hover:border-[#B91C35]/50 transition-all flex flex-col justify-between">
               <div>
-                <div className="w-12 h-12 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold mb-4">
+                <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-800 text-[#142433] dark:text-slate-200 flex items-center justify-center font-bold mb-5">
                   <HeartHandshake className="w-6 h-6" />
                 </div>
                 <h3 className="text-lg font-bold text-[var(--text-primary)] mb-2">
@@ -586,16 +612,16 @@ export default function App() {
                   In development: a privacy-preserving notification workflow via Telegram Bot API so opted-in donors receive alerts without ever revealing personal contact numbers publicly.
                 </p>
               </div>
-              <div className="mt-6 pt-4 border-t border-[var(--border-main)] text-xs text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+              <div className="mt-6 pt-4 border-t border-[var(--border-main)] text-xs text-[#64748B] dark:text-slate-400 font-bold flex items-center gap-1">
                 <span>Architecture Specification</span>
                 <ChevronRight className="w-3.5 h-3.5" />
               </div>
             </div>
 
             {/* Pillar 3 */}
-            <div className="bg-[var(--bg-surface)] border border-[var(--border-main)] rounded-2xl p-6 shadow-sm hover:border-[#B91C35]/50 transition-all flex flex-col justify-between">
+            <div className="bg-[var(--bg-surface)] border border-[var(--border-main)] rounded-2xl p-7 shadow-sm hover:border-[#B91C35]/50 transition-all flex flex-col justify-between">
               <div>
-                <div className="w-12 h-12 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold mb-4">
+                <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-800 text-[#142433] dark:text-slate-200 flex items-center justify-center font-bold mb-5">
                   <Bot className="w-6 h-6" />
                 </div>
                 <h3 className="text-lg font-bold text-[var(--text-primary)] mb-2">
@@ -605,7 +631,7 @@ export default function App() {
                   Planned integration: lightweight local Gemma 4 / rule-based fallback to extract structured location and urgency parameters, strictly validated by deterministic backend code.
                 </p>
               </div>
-              <div className="mt-6 pt-4 border-t border-[var(--border-main)] text-xs text-indigo-600 dark:text-indigo-400 font-semibold flex items-center gap-1">
+              <div className="mt-6 pt-4 border-t border-[var(--border-main)] text-xs text-[#64748B] dark:text-slate-400 font-bold flex items-center gap-1">
                 <span>Model & Fallback Design</span>
                 <ChevronRight className="w-3.5 h-3.5" />
               </div>
@@ -615,33 +641,33 @@ export default function App() {
       </section>
 
       {/* Ethical Safeguards & Medical Disclaimer Section */}
-      <section id="safeguards" className="py-12 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="rounded-2xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/70 dark:bg-amber-950/20 p-6 sm:p-8">
-          <div className="flex flex-col sm:flex-row items-start gap-4">
-            <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-300 flex items-center justify-center shrink-0">
-              <AlertTriangle className="w-5 h-5" />
+      <section id="safeguards" className="py-14 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="rounded-3xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/70 dark:bg-amber-950/20 p-7 sm:p-10">
+          <div className="flex flex-col sm:flex-row items-start gap-5">
+            <div className="w-12 h-12 rounded-2xl bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-300 flex items-center justify-center shrink-0">
+              <AlertTriangle className="w-6 h-6" />
             </div>
-            <div className="space-y-3">
-              <h3 className="text-base sm:text-lg font-bold text-amber-950 dark:text-amber-200">
+            <div className="space-y-3.5">
+              <h3 className="text-lg sm:text-xl font-extrabold text-amber-950 dark:text-amber-200 tracking-tight">
                 Ethical Safeguards & Emergency Medical Notice
               </h3>
               <p className="text-xs sm:text-sm text-amber-900/90 dark:text-amber-300/90 leading-relaxed">
                 RaktSetu is a student/hackathon technical prototype built to showcase transparent data aggregation and privacy-first coordination. It is <strong>not a certified emergency medical service</strong>.
               </p>
-              <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-amber-900/80 dark:text-amber-300/80 pt-1">
-                <li className="flex items-center gap-2">
+              <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-amber-900/80 dark:text-amber-300/80 pt-1">
+                <li className="flex items-center gap-2.5">
                   <CheckCircle2 className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
                   <span>Never guarantees physical blood inventory without direct bank confirmation.</span>
                 </li>
-                <li className="flex items-center gap-2">
+                <li className="flex items-center gap-2.5">
                   <CheckCircle2 className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
                   <span>External hospital feeds, scraping tools, and Telegram bots are disconnected in this UI demo.</span>
                 </li>
-                <li className="flex items-center gap-2">
+                <li className="flex items-center gap-2.5">
                   <CheckCircle2 className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
                   <span>Donor participation is strictly opt-in with revocable voluntary consent.</span>
                 </li>
-                <li className="flex items-center gap-2">
+                <li className="flex items-center gap-2.5">
                   <CheckCircle2 className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
                   <span>Always call official emergency services (112 / 108) for acute trauma response.</span>
                 </li>
@@ -652,23 +678,23 @@ export default function App() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-[var(--border-main)] bg-[var(--bg-surface)] py-10 transition-colors">
+      <footer className="border-t border-[var(--border-main)] bg-[var(--bg-surface)] py-12 transition-colors">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-3">
-              <div className="w-7 h-7 rounded-lg bg-[#B91C35] text-white flex items-center justify-center font-bold text-xs">
+              <div className="w-8 h-8 rounded-xl bg-[#B91C35] text-white flex items-center justify-center font-bold text-xs">
                 R
               </div>
-              <span className="font-bold text-sm text-[var(--text-primary)]">
+              <span className="font-extrabold text-base text-[var(--text-primary)]">
                 RaktSetu (रक्तसेतु)
               </span>
-              <span className="text-xs text-[var(--text-secondary)]">
+              <span className="text-xs text-[var(--text-secondary)] font-medium">
                 • Open-Source Hackathon Prototype
               </span>
             </div>
 
-            <div className="flex flex-wrap items-center gap-4 text-xs text-[var(--text-secondary)]">
-              <span>Stack: FastAPI + React + Vite + Tailwind v4</span>
+            <div className="flex flex-wrap items-center gap-4 text-xs text-[var(--text-secondary)] font-medium">
+              <span>Stack: FastAPI + React + Three.js + Tailwind v4</span>
               <span>•</span>
               <span>Target Scope: Delhi & Lucknow</span>
               <span>•</span>
@@ -683,7 +709,7 @@ export default function App() {
             </div>
           </div>
 
-          <div className="mt-8 pt-6 border-t border-[var(--border-main)] text-center text-[11px] text-[var(--text-secondary)]">
+          <div className="mt-8 pt-6 border-t border-[var(--border-main)] text-center text-xs text-[var(--text-secondary)]">
             © 2026 RaktSetu Maintainers and Contributors. Licensed under the MIT License.
           </div>
         </div>

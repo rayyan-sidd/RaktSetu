@@ -3,6 +3,9 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
+  --font-display: 'Plus Jakarta Sans', 'Manrope', system-ui, sans-serif;
+  --font-body: 'Plus Jakarta Sans', system-ui, sans-serif;
+
   --color-red: #B91C35;
   --color-blush: #FFF1F2;
   --color-navy: #142433;
@@ -26,48 +29,17 @@
   --text-secondary: #94A3B8;
 }
 
-@keyframes floatSlow {
-  0%, 100% {
-    transform: translateY(0px) rotate(0deg);
-  }
-  50% {
-    transform: translateY(-8px) rotate(1.5deg);
-  }
+body {
+  font-family: var(--font-body);
+  letter-spacing: -0.011em;
 }
 
-@keyframes pulseGlow {
-  0%, 100% {
-    opacity: 0.6;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.9;
-    transform: scale(1.05);
-  }
-}
-
-@keyframes orbitNode {
-  0% {
-    transform: rotate(0deg) translateX(120px) rotate(0deg);
-  }
-  100% {
-    transform: rotate(360deg) translateX(120px) rotate(-360deg);
-  }
-}
-
-.animate-float-slow {
-  animation: floatSlow 7s ease-in-out infinite;
-}
-
-.animate-pulse-glow {
-  animation: pulseGlow 4s ease-in-out infinite;
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  letter-spacing: -0.025em;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .animate-float-slow,
-  .animate-pulse-glow {
-    animation: none !important;
-  }
   * {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
