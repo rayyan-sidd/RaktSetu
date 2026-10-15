@@ -4,39 +4,50 @@ import {
   buildDiscoveryUrl,
   fetchBloodBanks,
   formatTimestamp,
+  getApiBaseUrl,
   type BloodBankListResponse,
 } from '../src/services/api.ts'
 
 describe('Discovery API Service', () => {
-  const BASE_URL = 'http://127.0.0.1:8000'
+  it('defaults to relative /api path for Vite dev proxy when baseUrl is empty or omitted', () => {
+    assert.equal(getApiBaseUrl(), '')
+    assert.equal(buildDiscoveryUrl(), '/api/blood-banks')
+    assert.equal(buildDiscoveryUrl(null, null), '/api/blood-banks')
+    assert.equal(buildDiscoveryUrl('All', 'All'), '/api/blood-banks')
+  })
 
-  it('constructs an unfiltered URL when parameters are null, undefined, or "All"', () => {
+  it('constructs relative proxy URL with city query parameter', () => {
+    const url = buildDiscoveryUrl('Delhi', null)
+    assert.equal(url, '/api/blood-banks?city=Delhi')
+  })
+
+  it('constructs relative proxy URL with blood group query parameter and URL encodes plus sign', () => {
+    const url = buildDiscoveryUrl(null, 'O+')
+    assert.equal(url, '/api/blood-banks?blood_group=O%2B')
+
+    const urlNeg = buildDiscoveryUrl(null, 'AB-')
+    assert.equal(urlNeg, '/api/blood-banks?blood_group=AB-')
+  })
+
+  it('constructs relative proxy URL with combined city and blood group parameters', () => {
+    const url = buildDiscoveryUrl('Lucknow', 'A+')
+    assert.equal(url, '/api/blood-banks?city=Lucknow&blood_group=A%2B')
+  })
+
+  it('supports explicitly configured baseUrl for deployment while preserving query encoding', () => {
+    const customBase = 'http://127.0.0.1:8000'
     assert.equal(
-      buildDiscoveryUrl(null, null, BASE_URL),
+      buildDiscoveryUrl(null, null, customBase),
       'http://127.0.0.1:8000/api/blood-banks'
     )
     assert.equal(
-      buildDiscoveryUrl('All', 'All', BASE_URL),
-      'http://127.0.0.1:8000/api/blood-banks'
+      buildDiscoveryUrl('Delhi', 'O+', customBase),
+      'http://127.0.0.1:8000/api/blood-banks?city=Delhi&blood_group=O%2B'
     )
-  })
-
-  it('constructs URL with city query parameter', () => {
-    const url = buildDiscoveryUrl('Delhi', null, BASE_URL)
-    assert.equal(url, 'http://127.0.0.1:8000/api/blood-banks?city=Delhi')
-  })
-
-  it('constructs URL with blood group query parameter and URL encodes plus sign', () => {
-    const url = buildDiscoveryUrl(null, 'O+', BASE_URL)
-    assert.equal(url, 'http://127.0.0.1:8000/api/blood-banks?blood_group=O%2B')
-
-    const urlNeg = buildDiscoveryUrl(null, 'AB-', BASE_URL)
-    assert.equal(urlNeg, 'http://127.0.0.1:8000/api/blood-banks?blood_group=AB-')
-  })
-
-  it('constructs URL with combined city and blood group parameters', () => {
-    const url = buildDiscoveryUrl('Lucknow', 'A+', BASE_URL)
-    assert.equal(url, 'http://127.0.0.1:8000/api/blood-banks?city=Lucknow&blood_group=A%2B')
+    assert.equal(
+      buildDiscoveryUrl(null, null, 'https://api.raktsetu.org/'),
+      'https://api.raktsetu.org/api/blood-banks'
+    )
   })
 
   it('formats UTC ISO 8601 timestamps accurately while retaining UTC provenance', () => {

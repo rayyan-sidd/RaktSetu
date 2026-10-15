@@ -23,29 +23,37 @@ export interface BloodBankListResponse {
 }
 
 /**
- * Resolve the base API URL from Vite environment variables with fallback to local development port.
+ * Resolve the base API URL from Vite environment variables.
+ * Defaults to an empty string in local development to route through the Vite dev proxy (/api).
  */
 export function getApiBaseUrl(): string {
   const envUrl = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_API_BASE_URL : ''
-  return (envUrl || 'http://127.0.0.1:8000').replace(/\/$/, '')
+  return (envUrl || '').replace(/\/$/, '')
 }
 
 /**
  * Construct the endpoint URL with optional city and blood group query parameters.
+ * Defaults to the relative proxy path (/api/blood-banks) in local development,
+ * while supporting an explicitly configured baseUrl for separate deployments.
  */
 export function buildDiscoveryUrl(
   city?: string | null,
   bloodGroup?: string | null,
   baseUrl: string = getApiBaseUrl()
 ): string {
-  const url = new URL(`${baseUrl}/api/blood-banks`)
+  const cleanBase = baseUrl ? baseUrl.replace(/\/$/, '') : ''
+  const basePath = cleanBase ? `${cleanBase}/api/blood-banks` : '/api/blood-banks'
+
+  const params = new URLSearchParams()
   if (city && city !== 'All') {
-    url.searchParams.set('city', city)
+    params.set('city', city)
   }
   if (bloodGroup && bloodGroup !== 'All') {
-    url.searchParams.set('blood_group', bloodGroup)
+    params.set('blood_group', bloodGroup)
   }
-  return url.toString()
+
+  const queryString = params.toString()
+  return queryString ? `${basePath}?${queryString}` : basePath
 }
 
 /**
