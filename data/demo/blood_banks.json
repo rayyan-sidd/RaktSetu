@@ -1,0 +1,506 @@
+[
+  {
+    "name": "Demo Central Transfusion Facility",
+    "city": "Delhi",
+    "locality": "Connaught Place (Central Delhi)",
+    "stock_reports": [
+      {
+        "blood_group": "A+",
+        "units_reported": 12,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "A-",
+        "units_reported": 4,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "B+",
+        "units_reported": 15,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "B-",
+        "units_reported": 3,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "AB+",
+        "units_reported": 6,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "AB-",
+        "units_reported": 2,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "O+",
+        "units_reported": 18,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "O-",
+        "units_reported": 5,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      }
+    ]
+  },
+  {
+    "name": "North Ridge Synthetic Blood Depot",
+    "city": "Delhi",
+    "locality": "Civil Lines (North Delhi)",
+    "stock_reports": [
+      {
+        "blood_group": "A+",
+        "units_reported": 8,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "A-",
+        "units_reported": 2,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "B+",
+        "units_reported": 10,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "B-",
+        "units_reported": 4,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "AB+",
+        "units_reported": 3,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "AB-",
+        "units_reported": 1,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "O+",
+        "units_reported": 14,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "O-",
+        "units_reported": 3,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      }
+    ]
+  },
+  {
+    "name": "South District Fictional Blood Bank",
+    "city": "Delhi",
+    "locality": "Saket (South Delhi)",
+    "stock_reports": [
+      {
+        "blood_group": "A+",
+        "units_reported": 15,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "A-",
+        "units_reported": 5,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "B+",
+        "units_reported": 8,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "B-",
+        "units_reported": 2,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "AB+",
+        "units_reported": 7,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "AB-",
+        "units_reported": 2,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "O+",
+        "units_reported": 20,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "O-",
+        "units_reported": 4,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      }
+    ]
+  },
+  {
+    "name": "East Valley Demo Transfusion Center",
+    "city": "Delhi",
+    "locality": "Mayur Vihar (East Delhi)",
+    "stock_reports": [
+      {
+        "blood_group": "A+",
+        "units_reported": 6,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "A-",
+        "units_reported": 1,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "B+",
+        "units_reported": 9,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "B-",
+        "units_reported": 3,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "AB+",
+        "units_reported": 4,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "AB-",
+        "units_reported": 1,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "O+",
+        "units_reported": 11,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "O-",
+        "units_reported": 2,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      }
+    ]
+  },
+  {
+    "name": "Gomti Bank Synthetic Blood Repository",
+    "city": "Lucknow",
+    "locality": "Gomti Nagar (East Lucknow)",
+    "stock_reports": [
+      {
+        "blood_group": "A+",
+        "units_reported": 10,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "A-",
+        "units_reported": 3,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "B+",
+        "units_reported": 14,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "B-",
+        "units_reported": 5,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "AB+",
+        "units_reported": 5,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "AB-",
+        "units_reported": 2,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "O+",
+        "units_reported": 16,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "O-",
+        "units_reported": 4,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      }
+    ]
+  },
+  {
+    "name": "Awadh Central Fictional Blood Reserve",
+    "city": "Lucknow",
+    "locality": "Hazratganj (Central Lucknow)",
+    "stock_reports": [
+      {
+        "blood_group": "A+",
+        "units_reported": 14,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "A-",
+        "units_reported": 4,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "B+",
+        "units_reported": 11,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "B-",
+        "units_reported": 3,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "AB+",
+        "units_reported": 8,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "AB-",
+        "units_reported": 3,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "O+",
+        "units_reported": 22,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "O-",
+        "units_reported": 6,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      }
+    ]
+  },
+  {
+    "name": "Charbagh Metro Demo Blood Unit",
+    "city": "Lucknow",
+    "locality": "Charbagh (South Lucknow)",
+    "stock_reports": [
+      {
+        "blood_group": "A+",
+        "units_reported": 7,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "A-",
+        "units_reported": 2,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "B+",
+        "units_reported": 12,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "B-",
+        "units_reported": 4,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "AB+",
+        "units_reported": 3,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "AB-",
+        "units_reported": 1,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "O+",
+        "units_reported": 13,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "O-",
+        "units_reported": 3,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      }
+    ]
+  },
+  {
+    "name": "Old City Synthetic Transfusion Depot",
+    "city": "Lucknow",
+    "locality": "Chowk (Old Lucknow)",
+    "stock_reports": [
+      {
+        "blood_group": "A+",
+        "units_reported": 9,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "A-",
+        "units_reported": 3,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "B+",
+        "units_reported": 8,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "B-",
+        "units_reported": 2,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "AB+",
+        "units_reported": 4,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "AB-",
+        "units_reported": 2,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "O+",
+        "units_reported": 15,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      },
+      {
+        "blood_group": "O-",
+        "units_reported": 5,
+        "source_name": "Synthetic demo dataset",
+        "data_timestamp": "2026-10-15T12:00:00Z",
+        "verification_status": "demo"
+      }
+    ]
+  }
+]

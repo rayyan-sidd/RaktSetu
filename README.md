@@ -92,8 +92,9 @@ RaktSetu is architected to be developed, tested, and demonstrated entirely on a 
 - [x] **Step 1A: Repository Foundation** (Git, .gitignore, README, MIT License, Skeleton)
 - [x] **Step 1B: Backend Scaffolding & Healthcheck** (FastAPI app, Pydantic schemas, healthcheck endpoint, automated tests)
 - [x] **Step 1C: Frontend Scaffolding** (Vite + React + TypeScript + Tailwind CSS v4)
-- [ ] **Step 2: Core Data Models & Medical Compatibility Engine** (ABO/Rh logic, unit tests)
-- [ ] **Step 3: Blood Bank Discovery & Freshness Engine** (Delhi & Lucknow seed data, TinyFish client)
+- [x] **Step 2A: Blood Bank Discovery API** (SQLAlchemy 2.x, SQLite, idempotent synthetic seeder, discovery endpoint)
+- [ ] **Step 2B: Medical Compatibility Engine** (Deterministic ABO/Rh logic, compatibility unit tests)
+- [ ] **Step 3: Blood Bank Freshness & External Connectors** (Source attribution, TinyFish worker client)
 - [ ] **Step 4: Voluntary Donor Matching & Privacy Relay** (Consent flow, Telegram bot dispatch)
 - [ ] **Step 5: AI Triage Agent** (Gemma 4 integration + deterministic fallback)
 - [ ] **Step 6: Unified UI Dashboard** (Emergency search, live freshness indicators, donor portal)
@@ -103,8 +104,8 @@ RaktSetu is architected to be developed, tested, and demonstrated entirely on a 
 
 ## Local Backend Setup & Testing
 
-### 1. Environment Setup
-Create the virtual environment and install dependencies:
+### 1. Environment & Dependencies Setup
+Create the virtual environment and install backend dependencies:
 ```bash
 # Create virtual environment
 python -m venv .venv
@@ -113,17 +114,78 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r backend/requirements.txt
 ```
 
-### 2. Run Automated Tests
+### 2. Seed Synthetic Demonstration Database
+Populate the local SQLite database (`data/raktsetu.db`) with fictional demo records:
+```bash
+.\.venv\Scripts\python.exe -m backend.app.seed_demo
+```
+> [!NOTE]
+> **Synthetic Dataset Notice:** All demo records are strictly fictional demonstration data covering Delhi and Lucknow. Stock numbers are illustrative snapshot records, not real-time hospital inventory or a guarantee of physical blood availability.
+> The seeding script is **idempotent**: running it again will safely skip without overwriting or duplicating records.
+
+### 3. Run Automated Tests
 ```bash
 .\.venv\Scripts\python.exe -m pytest backend/tests -v
 ```
 
-### 3. Start Local Development Server
+### 4. Start Local Development Server
 ```bash
 .\.venv\Scripts\python.exe -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000
 ```
-- Health Endpoint: [http://127.0.0.1:8000/api/health](http://127.0.0.1:8000/api/health)
-- Interactive API Documentation (Swagger UI): [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+- Interactive Swagger UI: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+- Alternative Redoc: [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc)
+- Health Check: [http://127.0.0.1:8000/api/health](http://127.0.0.1:8000/api/health)
+
+### 5. Blood Bank Discovery API Examples
+
+Discovery queries return an envelope with `items`, `count` (number of matching blood banks), and `data_notice`:
+
+- **All blood banks (Delhi & Lucknow)**:
+  ```http
+  GET /api/blood-banks
+  ```
+- **Filter by city**:
+  ```http
+  GET /api/blood-banks?city=Delhi
+  GET /api/blood-banks?city=Lucknow
+  ```
+- **Filter by blood group**:
+  ```http
+  GET /api/blood-banks?blood_group=O-
+  GET /api/blood-banks?blood_group=A%2B
+  ```
+- **Combined city and blood group query**:
+  ```http
+  GET /api/blood-banks?city=Delhi&blood_group=O-
+  ```
+
+Example JSON Response:
+```json
+{
+  "items": [
+    {
+      "id": 1,
+      "name": "Demo Central Transfusion Facility",
+      "city": "Delhi",
+      "locality": "Connaught Place (Central Delhi)",
+      "stock_reports": [
+        {
+          "id": 8,
+          "blood_bank_id": 1,
+          "blood_group": "O-",
+          "units_reported": 5,
+          "source_name": "Synthetic demo dataset",
+          "data_timestamp": "2026-10-15T12:00:00Z",
+          "verification_status": "demo"
+        }
+      ]
+    }
+  ],
+  "count": 1,
+  "data_notice": "All records are synthetic demonstration data and do not reflect real-time hospital inventory or guaranteed physical blood availability."
+}
+```
+
 
 ---
 
