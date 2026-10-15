@@ -91,7 +91,7 @@ RaktSetu is architected to be developed, tested, and demonstrated entirely on a 
 
 - [x] **Step 1A: Repository Foundation** (Git, .gitignore, README, MIT License, Skeleton)
 - [x] **Step 1B: Backend Scaffolding & Healthcheck** (FastAPI app, Pydantic schemas, healthcheck endpoint, automated tests)
-- [ ] **Step 1C: Frontend Scaffolding** (Vite + React + TypeScript + Tailwind CSS)
+- [x] **Step 1C: Frontend Scaffolding** (Vite + React + TypeScript + Tailwind CSS v4)
 - [ ] **Step 2: Core Data Models & Medical Compatibility Engine** (ABO/Rh logic, unit tests)
 - [ ] **Step 3: Blood Bank Discovery & Freshness Engine** (Delhi & Lucknow seed data, TinyFish client)
 - [ ] **Step 4: Voluntary Donor Matching & Privacy Relay** (Consent flow, Telegram bot dispatch)
@@ -124,6 +124,29 @@ python -m venv .venv
 ```
 - Health Endpoint: [http://127.0.0.1:8000/api/health](http://127.0.0.1:8000/api/health)
 - Interactive API Documentation (Swagger UI): [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+
+---
+
+## Local Frontend Setup & Development
+
+### 1. Installation
+Navigate to the `frontend/` directory and install npm packages:
+```bash
+cd frontend
+npm install
+```
+
+### 2. Start Development Server
+```bash
+npm run dev
+```
+The local development server runs at `http://localhost:5173/`.
+
+### 3. Build for Production
+```bash
+npm run build
+```
+Production assets are generated in `frontend/dist/`.
 
 ---
 

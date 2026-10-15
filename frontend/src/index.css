@@ -1,0 +1,75 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --color-red: #B91C35;
+  --color-blush: #FFF1F2;
+  --color-navy: #142433;
+  --color-slate: #64748B;
+  --color-green: #15803D;
+
+  --bg-page: #FAFAF9;
+  --bg-surface: #FFFFFF;
+  --bg-elevated: #F5F5F4;
+  --border-main: #E2E8F0;
+  --text-primary: #142433;
+  --text-secondary: #64748B;
+}
+
+.dark {
+  --bg-page: #0B131C;
+  --bg-surface: #142433;
+  --bg-elevated: #1B2E40;
+  --border-main: #23394E;
+  --text-primary: #F8FAFC;
+  --text-secondary: #94A3B8;
+}
+
+@keyframes floatSlow {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-8px) rotate(1.5deg);
+  }
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes orbitNode {
+  0% {
+    transform: rotate(0deg) translateX(120px) rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg) translateX(120px) rotate(-360deg);
+  }
+}
+
+.animate-float-slow {
+  animation: floatSlow 7s ease-in-out infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-float-slow,
+  .animate-pulse-glow {
+    animation: none !important;
+  }
+  * {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
