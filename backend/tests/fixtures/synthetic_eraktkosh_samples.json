@@ -1,0 +1,112 @@
+{
+  "_notice": "CRITICAL: THESE ARE SYNTHETIC TEST FIXTURES ONLY FOR NORMALIZATION TESTING. THEY ARE NOT REAL DATA RETRIEVED FROM E-RAKTKOSH OR HOSPITALS.",
+  "valid_records": [
+    {
+      "test_case_id": "valid_delhi_ve_notation",
+      "facility_name": "Synthetic AIIMS Delhi Blood Center",
+      "city": "Delhi",
+      "locality": "Ansari Nagar",
+      "district": "South Delhi",
+      "blood_group": "O+Ve",
+      "blood_component": "Packed Red Blood Cells",
+      "units_reported": "18 Units",
+      "source_reported_timestamp": "15-Oct-2026 14:30:00",
+      "source_name": "e-RaktKosh (MoHFW)"
+    },
+    {
+      "test_case_id": "valid_lucknow_iso_timestamp",
+      "facility_name": "Synthetic KGMU Transfusion Unit",
+      "city": "Lucknow",
+      "locality": "Chowk",
+      "district": "Lucknow",
+      "blood_group": "B-VE",
+      "blood_component": "Whole Blood",
+      "units_reported": 12,
+      "source_reported_timestamp": "2026-10-15T16:00:00+05:30",
+      "source_name": "e-RaktKosh (MoHFW)"
+    },
+    {
+      "test_case_id": "valid_delhi_missing_timestamp_and_text_group",
+      "facility_name": "Synthetic RML Hospital Blood Depot",
+      "city": "New Delhi",
+      "locality": "Baba Kharak Singh Marg",
+      "blood_group": "A Positive",
+      "blood_component": "Platelet Concentrate",
+      "units_reported": "5",
+      "source_reported_timestamp": null,
+      "source_name": "e-RaktKosh (MoHFW)"
+    },
+    {
+      "test_case_id": "valid_delhi_naive_date_string",
+      "facility_name": "Synthetic Safdarjung Transfusion Facility",
+      "city": "Central Delhi",
+      "blood_group": "AB-",
+      "units_reported": "Available: 8",
+      "source_reported_timestamp": "2026-10-15 12:00:00",
+      "source_name": "e-RaktKosh (MoHFW)"
+    }
+  ],
+  "malformed_records": [
+    {
+      "test_case_id": "missing_facility_name",
+      "facility_name": "",
+      "city": "Delhi",
+      "blood_group": "O+",
+      "units_reported": 10
+    },
+    {
+      "test_case_id": "unsupported_city_mumbai",
+      "facility_name": "Synthetic Mumbai Facility",
+      "city": "Mumbai",
+      "blood_group": "O+",
+      "units_reported": 10
+    },
+    {
+      "test_case_id": "unsupported_blood_group_bombay",
+      "facility_name": "Synthetic Delhi Test Lab",
+      "city": "Delhi",
+      "blood_group": "Oh+Ve",
+      "units_reported": 4
+    },
+    {
+      "test_case_id": "unparseable_units_text",
+      "facility_name": "Synthetic Lucknow Clinic",
+      "city": "Lucknow",
+      "blood_group": "A+",
+      "units_reported": "In Stock"
+    },
+    {
+      "test_case_id": "negative_units",
+      "facility_name": "Synthetic Delhi Clinic",
+      "city": "Delhi",
+      "blood_group": "B+",
+      "units_reported": -3
+    },
+    {
+      "test_case_id": "malformed_timestamp",
+      "facility_name": "Synthetic Delhi Facility",
+      "city": "Delhi",
+      "blood_group": "O+",
+      "units_reported": 10,
+      "source_reported_timestamp": "recently updated"
+    }
+  ],
+  "duplicate_records": [
+    {
+      "facility_name": "Synthetic Metro Transfusion Center",
+      "city": "Delhi",
+      "locality": "Connaught Place",
+      "blood_group": "O+Ve",
+      "units_reported": 10,
+      "source_reported_timestamp": "15-Oct-2026 10:00:00"
+    },
+    {
+      "facility_name": "Synthetic Metro Transfusion Center",
+      "city": "Delhi",
+      "locality": "Connaught Place",
+      "blood_group": "O+",
+      "units_reported": 15,
+      "source_reported_timestamp": "15-Oct-2026 16:00:00"
+    }
+  ]
+}
