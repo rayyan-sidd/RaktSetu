@@ -15,7 +15,15 @@ import {
   ChevronRight,
   Database,
   Sparkles,
+  RefreshCw,
+  AlertCircle,
+  FilterX,
 } from 'lucide-react'
+import {
+  fetchBloodBanks,
+  formatTimestamp,
+  type BloodBank,
+} from './services/api'
 
 const HeroDroplet = lazy(() => import('./components/HeroDroplet'))
 
@@ -34,127 +42,8 @@ const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] as const
 type BloodGroup = typeof BLOOD_GROUPS[number]
 
 type City = 'Delhi' | 'Lucknow'
-
-interface BloodBankItem {
-  id: string
-  name: string
-  city: City
-  locality: string
-  distanceKm: number
-  bloodGroup: BloodGroup
-  reportedUnits: number
-  freshness: string
-  source: string
-  verificationStatus: 'Simulated Demo Data (Unverified)'
-  contactPhone: string
-}
-
-const DEMO_BANKS: BloodBankItem[] = [
-  {
-    id: 'delhi-1',
-    name: 'AIIMS Blood Transfusion Services',
-    city: 'Delhi',
-    locality: 'Ansari Nagar, New Delhi',
-    distanceKm: 3.2,
-    bloodGroup: 'O+',
-    reportedUnits: 8,
-    freshness: 'Sample timestamp: 24m ago',
-    source: 'Synthetic Demo Record',
-    verificationStatus: 'Simulated Demo Data (Unverified)',
-    contactPhone: '+91 11 2658 8500',
-  },
-  {
-    id: 'delhi-2',
-    name: 'Safdarjung Hospital Regional Blood Center',
-    city: 'Delhi',
-    locality: 'Ring Road, New Delhi',
-    distanceKm: 4.1,
-    bloodGroup: 'B+',
-    reportedUnits: 5,
-    freshness: 'Sample timestamp: 1h ago',
-    source: 'Synthetic Demo Record',
-    verificationStatus: 'Simulated Demo Data (Unverified)',
-    contactPhone: '+91 11 2616 5060',
-  },
-  {
-    id: 'delhi-3',
-    name: 'Red Cross Blood Bank Delhi',
-    city: 'Delhi',
-    locality: 'Golf Links, New Delhi',
-    distanceKm: 5.7,
-    bloodGroup: 'AB+',
-    reportedUnits: 3,
-    freshness: 'Sample timestamp: 35m ago',
-    source: 'Synthetic Demo Record',
-    verificationStatus: 'Simulated Demo Data (Unverified)',
-    contactPhone: '+91 11 2371 1551',
-  },
-  {
-    id: 'delhi-4',
-    name: 'Ram Manohar Lohia Hospital Blood Bank',
-    city: 'Delhi',
-    locality: 'Connaught Place, New Delhi',
-    distanceKm: 6.5,
-    bloodGroup: 'A+',
-    reportedUnits: 6,
-    freshness: 'Sample timestamp: 48m ago',
-    source: 'Synthetic Demo Record',
-    verificationStatus: 'Simulated Demo Data (Unverified)',
-    contactPhone: '+91 11 2340 4000',
-  },
-  {
-    id: 'lucknow-1',
-    name: 'KGMU Shatabdi Blood Bank & Transfusion',
-    city: 'Lucknow',
-    locality: 'Chowk, Lucknow',
-    distanceKm: 2.8,
-    bloodGroup: 'O+',
-    reportedUnits: 7,
-    freshness: 'Sample timestamp: 18m ago',
-    source: 'Synthetic Demo Record',
-    verificationStatus: 'Simulated Demo Data (Unverified)',
-    contactPhone: '+91 522 225 7540',
-  },
-  {
-    id: 'lucknow-2',
-    name: 'SGPGI Transfusion Medicine Department',
-    city: 'Lucknow',
-    locality: 'Raebareli Road, Lucknow',
-    distanceKm: 8.4,
-    bloodGroup: 'B-',
-    reportedUnits: 4,
-    freshness: 'Sample timestamp: 50m ago',
-    source: 'Synthetic Demo Record',
-    verificationStatus: 'Simulated Demo Data (Unverified)',
-    contactPhone: '+91 522 266 8004',
-  },
-  {
-    id: 'lucknow-3',
-    name: 'Dr. Ram Manohar Lohia Institute Blood Center',
-    city: 'Lucknow',
-    locality: 'Gomti Nagar, Lucknow',
-    distanceKm: 5.2,
-    bloodGroup: 'A+',
-    reportedUnits: 6,
-    freshness: 'Sample timestamp: 32m ago',
-    source: 'Synthetic Demo Record',
-    verificationStatus: 'Simulated Demo Data (Unverified)',
-    contactPhone: '+91 522 669 2000',
-  },
-  {
-    id: 'lucknow-4',
-    name: 'Balrampur Hospital Blood Bank',
-    city: 'Lucknow',
-    locality: 'Kaiserbagh, Lucknow',
-    distanceKm: 3.9,
-    bloodGroup: 'O-',
-    reportedUnits: 2,
-    freshness: 'Sample timestamp: 15m ago',
-    source: 'Synthetic Demo Record',
-    verificationStatus: 'Simulated Demo Data (Unverified)',
-    contactPhone: '+91 522 222 2234',
-  },
-]
+type CityFilter = 'All' | City
+type GroupFilter = 'All' | BloodGroup
 
 export default function App() {
   // Theme State
@@ -183,14 +72,58 @@ export default function App() {
   }
 
   // Search filter states
-  const [selectedCity, setSelectedCity] = useState<City>('Delhi')
-  const [selectedGroup, setSelectedGroup] = useState<BloodGroup>('O+')
+  const [selectedCity, setSelectedCity] = useState<CityFilter>('Delhi')
+  const [selectedGroup, setSelectedGroup] = useState<GroupFilter>('O+')
   const [showConsentDonorAlert, setShowConsentDonorAlert] = useState(true)
 
-  // Filtered demo items
-  const filteredBanks = DEMO_BANKS.filter(
-    bank => bank.city === selectedCity && (bank.bloodGroup === selectedGroup || bank.reportedUnits > 0)
-  )
+  // API State
+  const [banks, setBanks] = useState<BloodBank[]>([])
+  const [bankCount, setBankCount] = useState<number>(0)
+  const [dataNotice, setDataNotice] = useState<string>('')
+  const [isLoading, setIsLoading] = useState<boolean>(true)
+  const [error, setError] = useState<string | null>(null)
+  const [retryTrigger, setRetryTrigger] = useState<number>(0)
+
+  // Fetch actual discovery records from backend API
+  useEffect(() => {
+    const controller = new AbortController()
+    setIsLoading(true)
+    setError(null)
+
+    fetchBloodBanks(
+      selectedCity === 'All' ? null : selectedCity,
+      selectedGroup === 'All' ? null : selectedGroup,
+      controller.signal
+    )
+      .then(data => {
+        setBanks(data.items)
+        setBankCount(data.count)
+        setDataNotice(data.data_notice)
+        setIsLoading(false)
+      })
+      .catch(err => {
+        if (err.name !== 'AbortError') {
+          setError(
+            err.message ||
+              'Unable to connect to blood bank discovery API. Ensure the backend server is running.'
+          )
+          setIsLoading(false)
+        }
+      })
+
+    return () => {
+      controller.abort()
+    }
+  }, [selectedCity, selectedGroup, retryTrigger])
+
+  const handleRetry = () => {
+    setRetryTrigger(prev => prev + 1)
+  }
+
+  const handleResetFilters = () => {
+    setSelectedCity('All')
+    setSelectedGroup('All')
+  }
 
   return (
     <div className="min-h-screen bg-[var(--bg-page)] text-[var(--text-primary)] transition-colors duration-200 font-sans selection:bg-[#B91C35]/15 selection:text-[#B91C35]">
@@ -308,17 +241,17 @@ export default function App() {
 
                   {/* City Selector Pills */}
                   <div className="flex items-center gap-1 bg-[var(--bg-elevated)] p-1 rounded-xl border border-[var(--border-main)]">
-                    {(['Delhi', 'Lucknow'] as City[]).map(city => (
+                    {(['All', 'Delhi', 'Lucknow'] as CityFilter[]).map(city => (
                       <button
                         key={city}
                         onClick={() => setSelectedCity(city)}
-                        className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                           selectedCity === city
                             ? 'bg-[#B91C35] text-white shadow-sm'
                             : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                         }`}
                       >
-                        {city}
+                        {city === 'All' ? 'All' : city}
                       </button>
                     ))}
                   </div>
@@ -326,17 +259,37 @@ export default function App() {
 
                 {/* Blood Group Chips */}
                 <div>
-                  <label className="block text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider mb-1.5">
-                    Select Blood Group:
-                  </label>
-                  <div className="grid grid-cols-4 sm:grid-cols-8 gap-1.5">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
+                      Select Blood Group:
+                    </label>
+                    {selectedGroup !== 'All' && (
+                      <button
+                        onClick={() => setSelectedGroup('All')}
+                        className="text-[10px] font-semibold text-[#B91C35] hover:underline cursor-pointer"
+                      >
+                        Show All
+                      </button>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-5 sm:grid-cols-9 gap-1.5">
+                    <button
+                      onClick={() => setSelectedGroup('All')}
+                      className={`py-1.5 px-1.5 rounded-xl font-bold text-xs border transition-all cursor-pointer ${
+                        selectedGroup === 'All'
+                          ? 'bg-[#B91C35] text-white border-[#B91C35] shadow-sm shadow-[#B91C35]/30'
+                          : 'bg-[var(--bg-elevated)] text-[var(--text-primary)] border-[var(--border-main)] hover:border-[#B91C35]/40'
+                      }`}
+                    >
+                      All
+                    </button>
                     {BLOOD_GROUPS.map(group => {
                       const isSelected = selectedGroup === group
                       return (
                         <button
                           key={group}
                           onClick={() => setSelectedGroup(group)}
-                          className={`py-1.5 px-2 rounded-xl font-bold text-xs border transition-all cursor-pointer ${
+                          className={`py-1.5 px-1.5 rounded-xl font-bold text-xs border transition-all cursor-pointer ${
                             isSelected
                               ? 'bg-[#B91C35] text-white border-[#B91C35] shadow-sm shadow-[#B91C35]/30 scale-102'
                               : 'bg-[var(--bg-elevated)] text-[var(--text-primary)] border-[var(--border-main)] hover:border-[#B91C35]/40'
@@ -354,7 +307,10 @@ export default function App() {
                   className="w-full py-2.5 rounded-xl bg-[#B91C35] hover:bg-[#A0162D] text-white font-bold text-xs flex items-center justify-center gap-2 transition-colors shadow-md shadow-[#B91C35]/25"
                 >
                   <Sparkles className="w-3.5 h-3.5" />
-                  <span>Inspect Sample Records for {selectedCity} ({selectedGroup})</span>
+                  <span>
+                    Inspect Records for {selectedCity === 'All' ? 'All Cities' : selectedCity} (
+                    {selectedGroup === 'All' ? 'All Groups' : selectedGroup})
+                  </span>
                 </a>
               </div>
 
@@ -424,18 +380,18 @@ export default function App() {
             </div>
 
             {/* City Selector Pills */}
-            <div className="flex items-center gap-2 bg-[var(--bg-elevated)] p-1.5 rounded-xl border border-[var(--border-main)]">
-              {(['Delhi', 'Lucknow'] as City[]).map(city => (
+            <div className="flex items-center gap-1.5 sm:gap-2 bg-[var(--bg-elevated)] p-1.5 rounded-xl border border-[var(--border-main)]">
+              {(['All', 'Delhi', 'Lucknow'] as CityFilter[]).map(city => (
                 <button
                   key={city}
                   onClick={() => setSelectedCity(city)}
-                  className={`px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  className={`px-3 sm:px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                     selectedCity === city
                       ? 'bg-[#B91C35] text-white shadow-sm'
                       : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                   }`}
                 >
-                  {city} (Scope)
+                  {city === 'All' ? 'All Cities' : `${city} (Scope)`}
                 </button>
               ))}
             </div>
@@ -443,10 +399,30 @@ export default function App() {
 
           {/* Blood Group Selector Chips */}
           <div className="pt-6">
-            <label className="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-3">
-              Select Blood Group:
-            </label>
-            <div className="grid grid-cols-4 sm:grid-cols-8 gap-2 sm:gap-3">
+            <div className="flex items-center justify-between mb-3">
+              <label className="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">
+                Select Blood Group:
+              </label>
+              {selectedGroup !== 'All' && (
+                <button
+                  onClick={() => setSelectedGroup('All')}
+                  className="text-xs font-semibold text-[#B91C35] hover:underline cursor-pointer"
+                >
+                  Clear Selection (Show All)
+                </button>
+              )}
+            </div>
+            <div className="grid grid-cols-5 sm:grid-cols-9 gap-2 sm:gap-3">
+              <button
+                onClick={() => setSelectedGroup('All')}
+                className={`py-2.5 px-2 rounded-xl font-bold text-sm border transition-all cursor-pointer ${
+                  selectedGroup === 'All'
+                    ? 'bg-[#B91C35] text-white border-[#B91C35] shadow-md shadow-[#B91C35]/25 scale-102'
+                    : 'bg-[var(--bg-elevated)] text-[var(--text-primary)] border-[var(--border-main)] hover:border-[#B91C35]/40'
+                }`}
+              >
+                All
+              </button>
               {BLOOD_GROUPS.map(group => {
                 const isSelected = selectedGroup === group
                 return (
@@ -476,7 +452,7 @@ export default function App() {
                 className="w-4 h-4 rounded text-[#B91C35] focus:ring-[#B91C35] accent-[#B91C35]"
               />
               <span>
-                Simulate voluntary donor notification matching for <strong>{selectedCity}</strong> (Mock preview — live Telegram notifications are not connected)
+                Simulate voluntary donor notification matching for <strong>{selectedCity === 'All' ? 'Delhi & Lucknow' : selectedCity}</strong> (Mock preview — live Telegram notifications are not connected)
               </span>
             </label>
 
@@ -489,78 +465,191 @@ export default function App() {
 
         {/* Results Grid */}
         <div className="mt-8 space-y-4">
-          <div className="flex items-center justify-between px-1">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1">
             <h3 className="text-sm font-bold text-[var(--text-primary)] flex items-center gap-2">
-              <span>Sample records for {selectedCity} ({selectedGroup})</span>
-              <span className="text-xs font-normal text-[var(--text-secondary)]">
-                ({filteredBanks.length} demo items)
+              <span>
+                Reported Facilities: {selectedCity === 'All' ? 'Delhi & Lucknow' : selectedCity}{' '}
+                {selectedGroup !== 'All' ? `(${selectedGroup})` : '(All Groups)'}
               </span>
+              {!isLoading && !error && (
+                <span className="text-xs font-normal text-[var(--text-secondary)]">
+                  ({bankCount} {bankCount === 1 ? 'facility' : 'facilities'} reported)
+                </span>
+              )}
             </h3>
-            <span className="text-xs text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1">
+            <span className="text-xs text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1.5">
               <AlertTriangle className="w-3.5 h-3.5" />
               Simulated demonstration records only
             </span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {filteredBanks.map(bank => (
-              <div
-                key={bank.id}
-                className="bg-[var(--bg-surface)] border border-[var(--border-main)] rounded-2xl p-6 hover:border-[#B91C35]/50 transition-all shadow-sm hover:shadow-md flex flex-col justify-between"
-              >
-                <div className="space-y-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <h4 className="font-extrabold text-base text-[var(--text-primary)] leading-snug">
-                        {bank.name}
-                      </h4>
-                      <p className="text-xs text-[var(--text-secondary)] flex items-center gap-1.5 mt-1 font-medium">
-                        <MapPin className="w-3.5 h-3.5 text-[#B91C35]" />
-                        {bank.locality} • ~{bank.distanceKm} km (Sample distance)
-                      </p>
+          {/* Top Synthetic Data Disclaimer Notice from API */}
+          {dataNotice && (
+            <div className="bg-amber-500/10 border border-amber-500/25 rounded-2xl p-3.5 text-xs text-amber-800 dark:text-amber-300 flex items-start sm:items-center gap-2.5">
+              <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5 sm:mt-0" />
+              <span className="font-medium leading-relaxed">{dataNotice}</span>
+            </div>
+          )}
+
+          {/* Loading State */}
+          {isLoading && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {[1, 2, 3, 4].map(idx => (
+                <div
+                  key={idx}
+                  className="bg-[var(--bg-surface)] border border-[var(--border-main)] rounded-2xl p-6 space-y-4 animate-pulse"
+                >
+                  <div className="flex justify-between items-start">
+                    <div className="space-y-2 w-3/4">
+                      <div className="h-5 bg-slate-200 dark:bg-slate-800 rounded-md w-4/5" />
+                      <div className="h-3.5 bg-slate-100 dark:bg-slate-800/60 rounded-md w-1/2" />
                     </div>
-
-                    {/* Blood Group Pill */}
-                    <span className="inline-flex items-center justify-center w-11 h-11 rounded-xl bg-[#FFF1F2] dark:bg-[#B91C35]/25 text-[#B91C35] font-extrabold text-base border border-[#B91C35]/35 shadow-sm">
-                      {bank.bloodGroup}
-                    </span>
+                    <div className="w-11 h-11 bg-slate-200 dark:bg-slate-800 rounded-xl" />
                   </div>
-
-                  {/* Stock & Freshness Data Strip */}
                   <div className="grid grid-cols-2 gap-3 pt-3 border-t border-[var(--border-main)]">
-                    <div>
-                      <span className="text-[11px] font-semibold text-[var(--text-secondary)] block uppercase tracking-wider">
-                        Sample Reported Units:
-                      </span>
-                      <span className="text-sm font-bold text-[var(--text-primary)]">
-                        {bank.reportedUnits} units (Demo)
-                      </span>
+                    <div className="h-8 bg-slate-100 dark:bg-slate-800/50 rounded-md" />
+                    <div className="h-8 bg-slate-100 dark:bg-slate-800/50 rounded-md" />
+                  </div>
+                  <div className="h-6 bg-slate-100 dark:bg-slate-800/40 rounded-md pt-3 border-t border-[var(--border-main)]" />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Error State */}
+          {!isLoading && error && (
+            <div className="bg-[var(--bg-surface)] border border-rose-300 dark:border-rose-900/60 rounded-2xl p-8 text-center space-y-4 shadow-sm">
+              <div className="w-12 h-12 rounded-2xl bg-rose-50 dark:bg-rose-950/40 text-[#B91C35] flex items-center justify-center mx-auto border border-rose-200 dark:border-rose-800/50">
+                <AlertCircle className="w-6 h-6 text-[#B91C35]" />
+              </div>
+              <div className="max-w-md mx-auto space-y-1.5">
+                <h4 className="font-extrabold text-base text-[var(--text-primary)]">
+                  Unable to Connect to Discovery API
+                </h4>
+                <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+                  {error}
+                </p>
+                <p className="text-[11px] text-slate-400">
+                  Ensure the local FastAPI backend server is running on <code className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800">http://127.0.0.1:8000</code>.
+                </p>
+              </div>
+              <button
+                onClick={handleRetry}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#B91C35] hover:bg-[#A0162D] text-white text-xs font-bold transition-all shadow-sm cursor-pointer"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Retry Connection</span>
+              </button>
+            </div>
+          )}
+
+          {/* Empty State */}
+          {!isLoading && !error && banks.length === 0 && (
+            <div className="bg-[var(--bg-surface)] border border-[var(--border-main)] rounded-2xl p-10 text-center space-y-4 shadow-sm">
+              <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 text-[var(--text-secondary)] flex items-center justify-center mx-auto">
+                <Search className="w-6 h-6 text-slate-400" />
+              </div>
+              <div className="max-w-md mx-auto space-y-1">
+                <h4 className="font-extrabold text-base text-[var(--text-primary)]">
+                  No Reported Facilities Found
+                </h4>
+                <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+                  No blood bank records matched your criteria for <strong>{selectedCity === 'All' ? 'Delhi & Lucknow' : selectedCity}</strong>{' '}
+                  {selectedGroup !== 'All' ? `with blood group ${selectedGroup}` : ''}.
+                </p>
+              </div>
+              <button
+                onClick={handleResetFilters}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-[var(--border-main)] bg-[var(--bg-elevated)] text-xs font-bold hover:border-[#B91C35]/50 transition-all cursor-pointer"
+              >
+                <FilterX className="w-3.5 h-3.5 text-[#B91C35]" />
+                <span>Reset Filters (Show All)</span>
+              </button>
+            </div>
+          )}
+
+          {/* Success / Data State */}
+          {!isLoading && !error && banks.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {banks.map(bank => {
+                const activeReport =
+                  selectedGroup !== 'All'
+                    ? bank.stock_reports.find(r => r.blood_group === selectedGroup) || bank.stock_reports[0]
+                    : bank.stock_reports[0]
+                const timestampInfo = activeReport ? formatTimestamp(activeReport.data_timestamp) : null
+
+                return (
+                  <div
+                    key={bank.id}
+                    className="bg-[var(--bg-surface)] border border-[var(--border-main)] rounded-2xl p-6 hover:border-[#B91C35]/50 transition-all shadow-sm hover:shadow-md flex flex-col justify-between"
+                  >
+                    <div className="space-y-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <h4 className="font-extrabold text-base text-[var(--text-primary)] leading-snug">
+                            {bank.name}
+                          </h4>
+                          <p className="text-xs text-[var(--text-secondary)] flex items-center gap-1.5 mt-1 font-medium">
+                            <MapPin className="w-3.5 h-3.5 text-[#B91C35]" />
+                            <span>{bank.locality} • {bank.city}</span>
+                          </p>
+                        </div>
+
+                        {/* Blood Group Pill */}
+                        <div className="text-right">
+                          <span className="inline-flex items-center justify-center min-w-11 h-11 px-2.5 rounded-xl bg-[#FFF1F2] dark:bg-[#B91C35]/25 text-[#B91C35] font-extrabold text-base border border-[#B91C35]/35 shadow-sm">
+                            {selectedGroup !== 'All' ? selectedGroup : `${bank.stock_reports.length} Groups`}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Stock & Freshness Data Strip */}
+                      <div className="grid grid-cols-2 gap-3 pt-3 border-t border-[var(--border-main)]">
+                        <div>
+                          <span className="text-[11px] font-semibold text-[var(--text-secondary)] block uppercase tracking-wider">
+                            Reported Quantity:
+                          </span>
+                          <span className="text-sm font-bold text-[var(--text-primary)] block">
+                            {activeReport ? `${activeReport.units_reported} units` : 'No data'}{' '}
+                            <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold">(Demo Snapshot)</span>
+                          </span>
+                          <span className="text-[10px] text-[var(--text-secondary)] block mt-0.5">
+                            Not a physical guarantee
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[11px] font-semibold text-[var(--text-secondary)] block uppercase tracking-wider">
+                            Snapshot Time:
+                          </span>
+                          <span
+                            className="text-xs font-semibold text-[var(--text-primary)] flex items-center gap-1.5 mt-0.5"
+                            title={`UTC Provenance: ${timestampInfo?.utcDisplay}`}
+                          >
+                            <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            <span className="truncate">{timestampInfo ? timestampInfo.localDisplay : 'N/A'}</span>
+                          </span>
+                          <span className="text-[10px] text-[var(--text-secondary)] block mt-0.5 font-mono">
+                            UTC: {timestampInfo?.utcDisplay}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-[11px] font-semibold text-[var(--text-secondary)] block uppercase tracking-wider">
-                        Timestamp Display:
+
+                    {/* Footer Tag Strip */}
+                    <div className="mt-5 pt-3.5 border-t border-[var(--border-main)] flex items-center justify-between text-xs gap-2">
+                      <span className="text-[11px] font-medium text-[var(--text-secondary)] bg-[var(--bg-elevated)] px-2.5 py-1 rounded-lg border border-[var(--border-main)] truncate max-w-[200px]">
+                        {activeReport ? activeReport.source_name : 'Synthetic demo dataset'}
                       </span>
-                      <span className="text-xs font-semibold text-[var(--text-primary)] flex items-center gap-1.5 mt-0.5">
-                        <Clock className="w-3.5 h-3.5 text-slate-400" />
-                        {bank.freshness}
+                      <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 px-2.5 py-1 rounded-lg flex items-center gap-1 shrink-0">
+                        <AlertTriangle className="w-3 h-3" />
+                        Simulated Demo Data (Unverified)
                       </span>
                     </div>
                   </div>
-                </div>
-
-                {/* Footer Tag Strip */}
-                <div className="mt-5 pt-3.5 border-t border-[var(--border-main)] flex items-center justify-between text-xs">
-                  <span className="text-[11px] font-medium text-[var(--text-secondary)] bg-[var(--bg-elevated)] px-2.5 py-1 rounded-lg border border-[var(--border-main)]">
-                    {bank.source}
-                  </span>
-                  <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 px-2.5 py-1 rounded-lg flex items-center gap-1">
-                    <AlertTriangle className="w-3 h-3" />
-                    {bank.verificationStatus}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       </section>
 
