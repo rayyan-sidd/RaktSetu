@@ -100,6 +100,12 @@ def get_blood_banks(
                 name=bank.name,
                 city=bank.city,
                 locality=bank.locality,
+                source_type=bank.source_type,
+                source_name=bank.source_name,
+                source_facility_id=bank.source_facility_id,
+                raw_address=bank.raw_address,
+                category=bank.category,
+                facility_type=bank.facility_type,
                 stock_reports=[StockReportRead.model_validate(r) for r in filtered_reports],
             )
         )

@@ -4,6 +4,20 @@ Provides pure normalization services for translating externally reported blood b
 records into RaktSetu's validated internal schema without network requests or database side effects.
 """
 
+from backend.app.services.eraktkosh.client import (
+    CITY_QUERY_CONFIG,
+    DEFAULT_TIMEOUT_SECONDS,
+    ERAKTKOSH_STOCK_URL,
+    ERaktKoshClient,
+    ERaktKoshRetrievalError,
+)
+from backend.app.services.eraktkosh.identity import generate_facility_source_id
+from backend.app.services.eraktkosh.ingestion import (
+    CityIngestionResult,
+    ERaktKoshIngestionError,
+    ingest_city_from_source,
+    ingest_eraktkosh_city_payload,
+)
 from backend.app.services.eraktkosh.normalizer import (
     normalize_blood_group,
     normalize_city_and_locality,
@@ -43,6 +57,16 @@ __all__ = [
     "SUPPORTED_CITIES",
     "FRESHNESS_LIVE_BADGE",
     "FRESHNESS_SOURCE_TIMESTAMP",
+    "ERAKTKOSH_STOCK_URL",
+    "CITY_QUERY_CONFIG",
+    "DEFAULT_TIMEOUT_SECONDS",
+    "ERaktKoshClient",
+    "ERaktKoshRetrievalError",
+    "generate_facility_source_id",
+    "CityIngestionResult",
+    "ERaktKoshIngestionError",
+    "ingest_eraktkosh_city_payload",
+    "ingest_city_from_source",
     "NormalizedStockRecord",
     "NormalizationResult",
     "BatchNormalizationResult",
