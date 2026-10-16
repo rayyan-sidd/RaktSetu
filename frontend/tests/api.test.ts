@@ -7,6 +7,7 @@ import {
   getApiBaseUrl,
   getReportFreshnessInfo,
   filterAndSortBloodBanks,
+  getTelegramBotUrl,
   type BloodBank,
   type BloodBankListResponse,
   type StockReport,
@@ -621,6 +622,13 @@ describe('Discovery API Service', () => {
       const pureDemo = [demoFacility1, demoFacility2]
       assert.deepEqual(filterAndSortBloodBanks(pureDemo, false), [])
       assert.deepEqual(filterAndSortBloodBanks(pureDemo, true), pureDemo)
+    })
+  })
+
+  describe('Telegram Bot Configuration', () => {
+    it('returns null when VITE_TELEGRAM_BOT_URL is unset, empty, or placeholder', () => {
+      // In Node test runner without env var, getTelegramBotUrl() should safely return null
+      assert.equal(getTelegramBotUrl(), null)
     })
   })
 })

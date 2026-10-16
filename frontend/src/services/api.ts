@@ -44,6 +44,18 @@ export function getApiBaseUrl(): string {
 }
 
 /**
+ * Resolve the Telegram Bot URL from Vite environment variables.
+ * Returns null if unset, empty, or configured with placeholder text.
+ */
+export function getTelegramBotUrl(): string | null {
+  const envUrl = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_TELEGRAM_BOT_URL : ''
+  if (!envUrl || typeof envUrl !== 'string') return null
+  const trimmed = envUrl.trim()
+  if (!trimmed || trimmed.includes('your_bot') || trimmed.includes('placeholder')) return null
+  return trimmed
+}
+
+/**
  * Construct the endpoint URL with optional city and blood group query parameters.
  * Defaults to the relative proxy path (/api/blood-banks) in local development,
  * while supporting an explicitly configured baseUrl for separate deployments.

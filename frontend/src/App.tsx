@@ -11,19 +11,24 @@ import {
   AlertTriangle,
   HeartHandshake,
   CheckCircle2,
-  ExternalLink,
-  ChevronRight,
   Database,
   Sparkles,
   RefreshCw,
   AlertCircle,
   FilterX,
+  Users,
+  Info,
+  Menu,
+  X,
+  Activity,
+  ArrowRight,
 } from 'lucide-react'
 import {
   fetchBloodBanks,
   formatTimestamp,
   getReportFreshnessInfo,
   filterAndSortBloodBanks,
+  getTelegramBotUrl,
   type BloodBank,
 } from './services/api'
 
@@ -46,6 +51,42 @@ type BloodGroup = typeof BLOOD_GROUPS[number]
 type City = 'Delhi' | 'Lucknow'
 type CityFilter = 'All' | City
 type GroupFilter = 'All' | BloodGroup
+
+// Sample donor profiles for presentation preview (clearly labeled as demo mockups)
+const SAMPLE_DONOR_PROFILES = [
+  {
+    alias: '@delhi_donor_o',
+    group: 'O+',
+    city: 'Delhi',
+    status: 'Standby Volunteer',
+    badge: 'Sample Profile',
+    notes: 'Voluntary ABO/Rh standby demonstration',
+  },
+  {
+    alias: '@lucknow_aid',
+    group: 'B+',
+    city: 'Lucknow',
+    status: 'Standby Volunteer',
+    badge: 'Sample Profile',
+    notes: 'Community voluntary emergency standby',
+  },
+  {
+    alias: '@delhi_care_a',
+    group: 'A-',
+    city: 'Delhi',
+    status: 'Standby Volunteer',
+    badge: 'Sample Profile',
+    notes: 'Rare-group voluntary readiness demonstration',
+  },
+  {
+    alias: '@up_plasma_vol',
+    group: 'AB+',
+    city: 'Lucknow',
+    status: 'Standby Volunteer',
+    badge: 'Sample Profile',
+    notes: 'Component readiness demonstration mockup',
+  },
+]
 
 export default function App() {
   // Theme State
@@ -73,11 +114,21 @@ export default function App() {
     setTheme(prev => (prev === 'light' ? 'dark' : 'light'))
   }
 
+  // Navigation & Modal State
+  const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false)
+  const [showTelegramModal, setShowTelegramModal] = useState<boolean>(false)
+
   // Search filter states
   const [selectedCity, setSelectedCity] = useState<CityFilter>('Delhi')
   const [selectedGroup, setSelectedGroup] = useState<GroupFilter>('O+')
   const [includeDemo, setIncludeDemo] = useState<boolean>(false)
-  const [showConsentDonorAlert, setShowConsentDonorAlert] = useState(true)
+
+  // Interactive "Become a Donor" prototype state
+  const [donorGroup, setDonorGroup] = useState<BloodGroup>('O+')
+  const [donorCity, setDonorCity] = useState<City>('Delhi')
+  const [donorConsent, setDonorConsent] = useState<boolean>(false)
+  const [donorSubmitted, setDonorSubmitted] = useState<boolean>(false)
+  const [donorError, setDonorError] = useState<string | null>(null)
 
   // API State
   const [banks, setBanks] = useState<BloodBank[]>([])
@@ -86,6 +137,9 @@ export default function App() {
   const [isLoading, setIsLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
   const [retryTrigger, setRetryTrigger] = useState<number>(0)
+
+  // Resolve Telegram Bot link
+  const telegramBotUrl = getTelegramBotUrl()
 
   // Filter and sort visible banks: real data first, demo excluded by default (OFF)
   const visibleBanks = filterAndSortBloodBanks(banks, includeDemo)
@@ -136,13 +190,30 @@ export default function App() {
     setIncludeDemo(false)
   }
 
+  const handleDonorSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!donorConsent) {
+      setDonorError('Please confirm the opt-in consent box to participate in the demonstration.')
+      return
+    }
+    setDonorError(null)
+    setDonorSubmitted(true)
+  }
+
+  const handleOpenTelegram = (e: React.MouseEvent) => {
+    if (!telegramBotUrl) {
+      e.preventDefault()
+      setShowTelegramModal(true)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-[var(--bg-page)] text-[var(--text-primary)] transition-colors duration-200 font-sans selection:bg-[#B91C35]/15 selection:text-[#B91C35]">
       {/* Top Banner: Restrained, Slim Prototype Notice */}
-      <div className="bg-[#142433] text-stone-300 text-[11px] py-1 px-4 text-center font-medium tracking-wide flex items-center justify-center gap-2 border-b border-[#23394E]">
+      <div className="bg-[#142433] text-stone-300 text-[11px] py-1.5 px-4 text-center font-medium tracking-wide flex items-center justify-center gap-2 border-b border-[#23394E]">
         <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
         <span>
-          <strong>Prototype Notice:</strong> Demonstrating blood discovery and coordination architecture. Stock inventory is source-reported or simulated demo data, and does not guarantee real-time physical blood availability.
+          <strong>Prototype Notice:</strong> Demonstrating transparent blood discovery and voluntary donor coordination. Stock counts are source-reported feeds or simulated demo snapshots and do not guarantee physical shelf inventory.
         </span>
       </div>
 
@@ -150,8 +221,8 @@ export default function App() {
       <header className="sticky top-0 z-30 border-b border-[var(--border-main)] bg-[var(--bg-surface)]/85 backdrop-blur-md transition-colors">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between">
           {/* Logo & Tagline */}
-          <div className="flex items-center gap-3">
-            <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-[#B91C35] to-[#8C1024] text-white shadow-md shadow-[#B91C35]/25">
+          <a href="#" className="flex items-center gap-3 group">
+            <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-[#B91C35] to-[#8C1024] text-white shadow-md shadow-[#B91C35]/25 group-hover:scale-105 transition-transform">
               <Droplet className="w-5 h-5 fill-white text-white" />
             </div>
             <div>
@@ -167,27 +238,39 @@ export default function App() {
                 Bridging the gap between need and help.
               </p>
             </div>
-          </div>
+          </a>
 
-          {/* Center Navigation Links (Editorial Minimalist) */}
-          <nav className="hidden md:flex items-center gap-7 text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">
+          {/* Visitor-Facing Navigation Links */}
+          <nav className="hidden lg:flex items-center gap-7 text-xs font-bold text-[var(--text-secondary)] tracking-wide">
             <a href="#discovery" className="hover:text-[#B91C35] transition-colors">
-              Discovery Console
+              Find Blood
             </a>
-            <a href="#pillars" className="hover:text-[#B91C35] transition-colors">
-              Architecture Plan
+            <a href="#become-donor" className="hover:text-[#B91C35] transition-colors">
+              Become a Donor
             </a>
-            <a href="#safeguards" className="hover:text-[#B91C35] transition-colors">
-              Safety & Ethics
+            <a href="#how-it-works" className="hover:text-[#B91C35] transition-colors">
+              How It Works
             </a>
-            <span className="inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 normal-case font-medium">
-              <MapPin className="w-3 h-3 text-[#B91C35]" />
-              Delhi & Lucknow
-            </span>
+            <a href="#future-scope" className="hover:text-[#B91C35] transition-colors">
+              Future Scope
+            </a>
           </nav>
 
-          {/* Right Controls: Theme Toggle & GitHub */}
-          <div className="flex items-center gap-3">
+          {/* Right Controls: Telegram CTA & Theme Toggle */}
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            {/* Telegram CTA Button */}
+            <a
+              href={telegramBotUrl || '#telegram-info'}
+              onClick={handleOpenTelegram}
+              target={telegramBotUrl ? '_blank' : undefined}
+              rel={telegramBotUrl ? 'noopener noreferrer' : undefined}
+              className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-bold rounded-xl bg-gradient-to-r from-[#0088cc] to-[#0077b5] text-white hover:opacity-95 transition-all shadow-sm shadow-[#0088cc]/20 cursor-pointer"
+            >
+              <Bot className="w-4 h-4 shrink-0" />
+              <span className="hidden sm:inline">Telegram Bot</span>
+            </a>
+
+            {/* Theme Toggle Button */}
             <button
               onClick={toggleTheme}
               aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
@@ -200,54 +283,98 @@ export default function App() {
               )}
             </button>
 
-            <a
-              href="https://github.com/rayyan-sidd/RaktSetu"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-xl bg-[#142433] dark:bg-white text-white dark:text-[#142433] hover:opacity-90 transition-opacity shadow-sm"
+            {/* Mobile Hamburger Toggle */}
+            <button
+              onClick={() => setMobileMenuOpen(prev => !prev)}
+              aria-label="Toggle Navigation Menu"
+              className="lg:hidden p-2 rounded-xl border border-[var(--border-main)] bg-[var(--bg-elevated)] text-[var(--text-primary)]"
             >
-              <span>GitHub</span>
-              <ExternalLink className="w-3.5 h-3.5" />
-            </a>
+              {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+            </button>
           </div>
         </div>
+
+        {/* Mobile Dropdown Menu */}
+        {mobileMenuOpen && (
+          <div className="lg:hidden border-t border-[var(--border-main)] bg-[var(--bg-surface)] px-4 py-3.5 space-y-2.5">
+            <a
+              href="#discovery"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block py-2 text-sm font-semibold text-[var(--text-primary)] hover:text-[#B91C35]"
+            >
+              Find Blood
+            </a>
+            <a
+              href="#become-donor"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block py-2 text-sm font-semibold text-[var(--text-primary)] hover:text-[#B91C35]"
+            >
+              Become a Donor
+            </a>
+            <a
+              href="#how-it-works"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block py-2 text-sm font-semibold text-[var(--text-primary)] hover:text-[#B91C35]"
+            >
+              How It Works
+            </a>
+            <a
+              href="#future-scope"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block py-2 text-sm font-semibold text-[var(--text-primary)] hover:text-[#B91C35]"
+            >
+              Future Scope
+            </a>
+            <a
+              href="#trust-safety"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block py-2 text-sm font-semibold text-amber-600 dark:text-amber-400"
+            >
+              Safety & Ethics
+            </a>
+          </div>
+        )}
       </header>
 
-      {/* Hero Section — Art-Directed Editorial Layout */}
+      {/* Hero Section — Headline & Quick Blood Discovery */}
       <section className="relative overflow-hidden pt-8 pb-14 lg:pt-14 lg:pb-20 border-b border-[var(--border-main)]">
-        {/* Ambient Soft Blush Radial Lighting */}
+        {/* Soft Ambient Radial Glow */}
         <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[750px] h-[400px] bg-gradient-to-tr from-[#B91C35]/10 via-[#FFF1F2]/20 dark:via-[#B91C35]/6 to-transparent blur-3xl pointer-events-none -z-10" />
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
-            {/* Left Column: Headline & Elevated Discovery Console */}
+            {/* Left Column: Headline, Tagline & Quick Search Console */}
             <div className="lg:col-span-7 space-y-6 text-left">
               {/* Badge */}
               <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#FFF1F2] dark:bg-[#B91C35]/20 border border-[#B91C35]/25 text-[#B91C35] text-xs font-bold tracking-wide">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#B91C35] animate-pulse" />
-                <span>RaktSetu Prototype • Delhi & Lucknow Initiative</span>
+                <span>RaktSetu • Blood Bank Discovery & Voluntary Donor Platform</span>
               </div>
 
-              {/* Headline in Three Deliberate Lines */}
-              <h1 className="text-4xl sm:text-5xl lg:text-[3.65rem] font-extrabold tracking-[-0.035em] text-[var(--text-primary)] leading-[1.06]">
-                Bridging the gap <br className="hidden sm:inline" />
-                <span className="bg-gradient-to-r from-[#B91C35] via-[#D32F4C] to-[#E11D48] bg-clip-text text-transparent">
-                  between urgent need
-                </span> <br className="hidden sm:inline" />
-                and voluntary help.
-              </h1>
+              {/* Headline & Tagline */}
+              <div className="space-y-2">
+                <h1 className="text-4xl sm:text-5xl lg:text-[3.65rem] font-extrabold tracking-[-0.035em] text-[var(--text-primary)] leading-[1.08]">
+                  Connecting Urgent Need <br className="hidden sm:inline" />
+                  <span className="bg-gradient-to-r from-[#B91C35] via-[#D32F4C] to-[#E11D48] bg-clip-text text-transparent">
+                    with Verified Help.
+                  </span>
+                </h1>
+                <p className="text-lg sm:text-xl font-semibold text-[#B91C35] tracking-tight">
+                  Bridging the gap between need and help.
+                </p>
+              </div>
 
-              {/* Subtitle */}
+              {/* Descriptive Subtitle */}
               <p className="text-sm sm:text-base text-[var(--text-secondary)] leading-relaxed max-w-xl font-normal">
-                An open-source coordination platform designing transparent, source-attributed blood discovery for Delhi and Lucknow, paired with an opt-in voluntary donor notification model.
+                Discover source-reported hospital blood stocks in Delhi and Lucknow with transparent freshness tracking, and join an opt-in volunteer donor network ready when every minute counts.
               </p>
 
-              {/* Elevated Discovery Console in Initial Viewport */}
+              {/* Elevated Discovery Console in Hero */}
               <div className="bg-[var(--bg-surface)] border border-[var(--border-main)] rounded-2xl p-5 shadow-sm space-y-3.5 max-w-xl">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[#B91C35]">
                     <Search className="w-3.5 h-3.5" />
-                    <span>Quick Discovery</span>
+                    <span>Quick Blood Discovery</span>
                   </div>
 
                   {/* City Selector Pills */}
@@ -313,58 +440,68 @@ export default function App() {
                   </div>
                 </div>
 
-                <a
-                  href="#discovery"
-                  className="w-full py-2.5 rounded-xl bg-[#B91C35] hover:bg-[#A0162D] text-white font-bold text-xs flex items-center justify-center gap-2 transition-colors shadow-md shadow-[#B91C35]/25"
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>
-                    Inspect Records for {selectedCity === 'All' ? 'All Cities' : selectedCity} (
-                    {selectedGroup === 'All' ? 'All Groups' : selectedGroup})
-                  </span>
-                </a>
+                {/* Primary Action Button */}
+                <div className="flex flex-col sm:flex-row gap-2.5 pt-1">
+                  <a
+                    href="#discovery"
+                    className="flex-1 py-2.5 rounded-xl bg-[#B91C35] hover:bg-[#A0162D] text-white font-bold text-xs flex items-center justify-center gap-2 transition-colors shadow-md shadow-[#B91C35]/25"
+                  >
+                    <Search className="w-3.5 h-3.5" />
+                    <span>
+                      Find Blood for {selectedCity === 'All' ? 'All Cities' : selectedCity} (
+                      {selectedGroup === 'All' ? 'All Groups' : selectedGroup})
+                    </span>
+                  </a>
+
+                  <a
+                    href="#become-donor"
+                    className="py-2.5 px-4 rounded-xl border border-[#B91C35]/30 hover:border-[#B91C35] bg-[var(--bg-elevated)] text-[var(--text-primary)] hover:text-[#B91C35] font-bold text-xs flex items-center justify-center gap-1.5 transition-colors"
+                  >
+                    <HeartHandshake className="w-3.5 h-3.5 text-[#B91C35]" />
+                    <span>Become a Donor</span>
+                  </a>
+                </div>
               </div>
 
-              {/* Hierarchy Metric Cards */}
+              {/* Three Key Telemetry Metrics */}
               <div className="grid grid-cols-3 gap-6 pt-2 max-w-xl border-t border-[var(--border-main)]">
                 <div>
                   <div className="text-xl font-extrabold text-[var(--text-primary)] tracking-tight">Delhi & LKO</div>
-                  <div className="text-xs text-[var(--text-secondary)] font-medium">Initial Scope</div>
+                  <div className="text-xs text-[var(--text-secondary)] font-medium">Supported Cities</div>
                 </div>
                 <div>
                   <div className="text-xl font-extrabold text-[#B91C35] tracking-tight">8 Groups</div>
-                  <div className="text-xs text-[var(--text-secondary)] font-medium">ABO / Rh Tracked</div>
+                  <div className="text-xs text-[var(--text-secondary)] font-medium">ABO / Rh Filtered</div>
                 </div>
                 <div>
-                  <div className="text-xl font-extrabold text-amber-600 dark:text-amber-400 tracking-tight">Opt-In</div>
-                  <div className="text-xs text-[var(--text-secondary)] font-medium">Planned Consent</div>
+                  <div className="text-xl font-extrabold text-blue-600 dark:text-blue-400 tracking-tight">e-RaktKosh</div>
+                  <div className="text-xs text-[var(--text-secondary)] font-medium">Official Feed Ingested</div>
                 </div>
               </div>
             </div>
 
-            {/* Right Column: 3D Sculptural Ruby Droplet with Balanced Floating Cards */}
+            {/* Right Column: 3D Sculptural Droplet Canvas */}
             <div className="lg:col-span-5 flex justify-center relative">
               <div className="relative w-full max-w-[440px] flex items-center justify-center">
-                {/* 3D Canvas Scene with Suspense */}
                 <Suspense fallback={<DropletFallback />}>
                   <HeroDroplet isDark={theme === 'dark'} />
                 </Suspense>
 
-                {/* Floating Telemetry Card 1 (Top-Right: Anchored without overlap) */}
-                <div className="absolute top-4 right-1 sm:right-3 z-20 bg-[var(--bg-surface)]/92 border border-[var(--border-main)] rounded-2xl p-3 shadow-lg backdrop-blur-md flex items-center gap-2.5 max-w-[200px]">
-                  <div className="w-2 h-2 rounded-full bg-amber-500 animate-ping shrink-0" />
+                {/* Floating Status Badge 1: Real Source Feed */}
+                <div className="absolute top-4 right-1 sm:right-3 z-20 bg-[var(--bg-surface)]/92 border border-[var(--border-main)] rounded-2xl p-3 shadow-lg backdrop-blur-md flex items-center gap-2.5 max-w-[210px]">
+                  <div className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse shrink-0" />
                   <div className="text-left">
-                    <p className="text-[11px] font-bold text-[var(--text-primary)] leading-tight">Simulated Feed</p>
-                    <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">Demo Records Only</p>
+                    <p className="text-[11px] font-bold text-[var(--text-primary)] leading-tight">Live Ingestion</p>
+                    <p className="text-[10px] text-blue-600 dark:text-blue-400 font-medium">Official e-RaktKosh Feed</p>
                   </div>
                 </div>
 
-                {/* Floating Telemetry Card 2 (Bottom-Left: Anchored without overlap) */}
+                {/* Floating Status Badge 2: Telegram Bot Integration */}
                 <div className="absolute bottom-4 left-1 sm:left-3 z-20 bg-[var(--bg-surface)]/92 border border-[var(--border-main)] rounded-2xl p-3 shadow-lg backdrop-blur-md flex items-center gap-2.5 max-w-[210px]">
-                  <ShieldCheck className="w-4 h-4 text-[#64748B] shrink-0" />
+                  <Bot className="w-4 h-4 text-[#0088cc] shrink-0" />
                   <div className="text-left">
-                    <p className="text-[11px] font-bold text-[var(--text-primary)] leading-tight">Privacy-First Relay</p>
-                    <p className="text-[10px] text-[var(--text-secondary)] font-medium">Planned Telegram Model</p>
+                    <p className="text-[11px] font-bold text-[var(--text-primary)] leading-tight">Telegram Assistant</p>
+                    <p className="text-[10px] text-[var(--text-secondary)] font-medium">Instant /find Chat Access</p>
                   </div>
                 </div>
               </div>
@@ -373,25 +510,25 @@ export default function App() {
         </div>
       </section>
 
-      {/* Discovery Interactive Widget */}
+      {/* Discovery Section — Search Results & Filters */}
       <section id="discovery" className="py-14 lg:py-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="bg-[var(--bg-surface)] border border-[var(--border-main)] rounded-3xl p-6 sm:p-10 shadow-sm">
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-8 border-b border-[var(--border-main)]">
             <div>
               <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#B91C35]">
                 <Search className="w-4 h-4" />
-                <span>Simulated Discovery Console</span>
+                <span>Hospital Stock Discovery</span>
               </div>
               <h2 className="text-2xl sm:text-3xl font-extrabold text-[var(--text-primary)] mt-1.5 tracking-tight">
-                Explore Sample Blood Availability Records
+                Reported Blood Bank Availability
               </h2>
               <p className="text-sm text-[var(--text-secondary)] mt-1.5 max-w-2xl leading-relaxed">
-                Filter mock records by target city and ABO/Rh group to preview how source attribution, timestamps, and verification badges will be displayed.
+                Filter official e-RaktKosh hospital records by city and blood group. Always call the blood bank to confirm physical units before traveling.
               </p>
             </div>
 
             {/* City Selector Pills */}
-            <div className="flex items-center gap-1.5 sm:gap-2 bg-[var(--bg-elevated)] p-1.5 rounded-xl border border-[var(--border-main)]">
+            <div className="flex items-center gap-1.5 sm:gap-2 bg-[var(--bg-elevated)] p-1.5 rounded-xl border border-[var(--border-main)] shrink-0">
               {(['All', 'Delhi', 'Lucknow'] as CityFilter[]).map(city => (
                 <button
                   key={city}
@@ -402,7 +539,7 @@ export default function App() {
                       : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                   }`}
                 >
-                  {city === 'All' ? 'All Cities' : `${city} (Scope)`}
+                  {city === 'All' ? 'All Cities' : `${city}`}
                 </button>
               ))}
             </div>
@@ -475,31 +612,14 @@ export default function App() {
                   </span>
                 ) : (
                   <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
-                    Real Data Only (Default)
+                    Real e-RaktKosh Only (Default)
                   </span>
                 )}
-              </label>
-
-              {/* Voluntary Donor Alert Checkbox (Simulated) */}
-              <label
-                htmlFor="checkbox-donor-alert"
-                className="flex items-center gap-2.5 cursor-pointer text-xs text-[var(--text-secondary)] select-none hover:text-[var(--text-primary)] transition-colors"
-              >
-                <input
-                  id="checkbox-donor-alert"
-                  type="checkbox"
-                  checked={showConsentDonorAlert}
-                  onChange={e => setShowConsentDonorAlert(e.target.checked)}
-                  className="w-4 h-4 rounded border-[var(--border-main)] text-[#B91C35] focus:ring-[#B91C35] accent-[#B91C35] cursor-pointer"
-                />
-                <span>
-                  Simulate voluntary donor notification preview
-                </span>
               </label>
             </div>
 
             <div className="text-xs text-[var(--text-secondary)] flex items-center gap-1.5 font-medium shrink-0">
-              <Database className="w-3.5 h-3.5 text-amber-500" />
+              <Database className="w-3.5 h-3.5 text-blue-500" />
               <span>
                 {hasExternal && hasDemo
                   ? 'Showing e-RaktKosh feed first, followed by demo dataset'
@@ -511,7 +631,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* Results Grid */}
+        {/* Results Header Strip */}
         <div className="mt-8 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1">
             <h3 className="text-sm font-bold text-[var(--text-primary)] flex items-center gap-2">
@@ -544,7 +664,7 @@ export default function App() {
             </div>
           )}
 
-          {/* Loading State */}
+          {/* Loading Skeleton */}
           {isLoading && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {[1, 2, 3, 4].map(idx => (
@@ -636,7 +756,7 @@ export default function App() {
             </div>
           )}
 
-          {/* Success / Data State */}
+          {/* Facilities Results Cards */}
           {!isLoading && !error && visibleBanks.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {visibleBanks.map(bank => {
@@ -661,7 +781,6 @@ export default function App() {
                             <h4 className="font-extrabold text-base text-[var(--text-primary)] leading-snug">
                               {bank.name}
                             </h4>
-                            {/* Provenance Pill */}
                             {isExternal ? (
                               <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60">
                                 e-RaktKosh Feed
@@ -683,7 +802,7 @@ export default function App() {
                           </p>
                         </div>
 
-                        {/* Blood Group Pill */}
+                        {/* Blood Group Badge */}
                         <div className="text-right shrink-0">
                           <span className="inline-flex items-center justify-center min-w-11 h-11 px-2.5 rounded-xl bg-[#FFF1F2] dark:bg-[#B91C35]/25 text-[#B91C35] font-extrabold text-base border border-[#B91C35]/35 shadow-sm">
                             {selectedGroup !== 'All' ? selectedGroup : `${bank.stock_reports.length} Groups`}
@@ -691,7 +810,7 @@ export default function App() {
                         </div>
                       </div>
 
-                      {/* Component Display Pill */}
+                      {/* Component Display Strip */}
                       <div className="flex items-center justify-between text-xs py-1.5 px-3 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-main)]">
                         <span className="text-[var(--text-secondary)] font-medium">Blood Component:</span>
                         <span className="font-bold text-[var(--text-primary)]">
@@ -699,7 +818,7 @@ export default function App() {
                         </span>
                       </div>
 
-                      {/* Stock & Freshness Data Strip */}
+                      {/* Stock Quantity & Freshness Strip */}
                       <div className="grid grid-cols-2 gap-3 pt-3 border-t border-[var(--border-main)]">
                         <div>
                           <span className="text-[11px] font-semibold text-[var(--text-secondary)] block uppercase tracking-wider">
@@ -792,7 +911,7 @@ export default function App() {
                       </div>
                     </div>
 
-                    {/* Footer Tag Strip */}
+                    {/* Facility Card Footer */}
                     <div className="mt-5 pt-3.5 border-t border-[var(--border-main)] flex flex-wrap items-center justify-between text-xs gap-2">
                       <span
                         className="text-[11px] font-medium text-[var(--text-secondary)] bg-[var(--bg-elevated)] px-2.5 py-1 rounded-lg border border-[var(--border-main)] truncate max-w-[200px]"
@@ -825,84 +944,423 @@ export default function App() {
         </div>
       </section>
 
-      {/* 3 Core Architecture Pillars (Design Specifications) */}
-      <section id="pillars" className="py-16 lg:py-24 border-t border-[var(--border-main)] bg-[var(--bg-elevated)]/50">
+      {/* "Become a Donor" Interactive Demonstration Section */}
+      <section id="become-donor" className="py-16 lg:py-24 border-t border-[var(--border-main)] bg-[var(--bg-elevated)]/40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center max-w-2xl mx-auto mb-14">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
+            {/* Left: Section Narrative & Notice */}
+            <div className="lg:col-span-5 space-y-5 text-left">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#FFF1F2] dark:bg-[#B91C35]/20 text-[#B91C35] text-xs font-bold tracking-wide border border-[#B91C35]/25">
+                <HeartHandshake className="w-3.5 h-3.5" />
+                <span>Voluntary Donor Community</span>
+              </div>
+              <h2 className="text-3xl sm:text-4xl font-extrabold text-[var(--text-primary)] tracking-tight">
+                Be on Standby When <br />
+                Every Minute Counts.
+              </h2>
+              <p className="text-sm text-[var(--text-secondary)] leading-relaxed">
+                When a hospital faces sudden stock shortages or a critical trauma case, voluntary donors within the same city can bridge the crucial gap before centralized supply arrives.
+              </p>
+
+              {/* Privacy Promises Callout */}
+              <div className="bg-[var(--bg-surface)] border border-[var(--border-main)] rounded-2xl p-5 space-y-3 shadow-sm">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--text-primary)] flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-[#B91C35]" />
+                  <span>Privacy-First Architecture</span>
+                </h4>
+                <ul className="space-y-2 text-xs text-[var(--text-secondary)]">
+                  <li className="flex items-start gap-2">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                    <span><strong>No phone numbers stored:</strong> We never request or store phone numbers in our database.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                    <span><strong>Per-request consent:</strong> Your Telegram handle is only shared when you explicitly click Accept on a matching alert.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                    <span><strong>Instant opt-out:</strong> Send <code>/stopdonor</code> anytime to stop all future notifications immediately.</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+
+            {/* Right: Interactive Prototype Form */}
+            <div className="lg:col-span-7">
+              <div className="bg-[var(--bg-surface)] border border-[var(--border-main)] rounded-3xl p-6 sm:p-9 shadow-sm">
+                <div className="flex items-center justify-between pb-5 border-b border-[var(--border-main)] mb-6">
+                  <div>
+                    <h3 className="text-lg font-bold text-[var(--text-primary)]">
+                      Donor Registration Demonstration
+                    </h3>
+                    <p className="text-xs text-[var(--text-secondary)] mt-0.5">
+                      Preview the donor enrollment experience planned for our Telegram bot.
+                    </p>
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/25">
+                    Prototype Form
+                  </span>
+                </div>
+
+                {donorSubmitted ? (
+                  /* Friendly Submission Confirmation State */
+                  <div className="py-6 text-center space-y-4">
+                    <div className="w-14 h-14 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 flex items-center justify-center mx-auto border border-emerald-200 dark:border-emerald-800/60">
+                      <CheckCircle2 className="w-7 h-7" />
+                    </div>
+                    <div className="space-y-1">
+                      <h4 className="text-xl font-extrabold text-[var(--text-primary)]">
+                        Volunteer Demonstration Received!
+                      </h4>
+                      <p className="text-xs sm:text-sm text-[var(--text-secondary)] max-w-md mx-auto">
+                        You simulated enrollment as an <strong>{donorGroup}</strong> donor in <strong>{donorCity}</strong>.
+                      </p>
+                    </div>
+
+                    <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 text-xs text-amber-800 dark:text-amber-300 max-w-md mx-auto text-left flex items-start gap-3">
+                      <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <div className="space-y-1">
+                        <p className="font-bold">Demonstration Only — Data Not Persisted</p>
+                        <p className="leading-relaxed text-[11px]">
+                          This web form is an interactive design preview. No personal data was saved to a database. In the planned full release, voluntary registrations will be securely managed via our Telegram bot.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="pt-2">
+                      <button
+                        onClick={() => {
+                          setDonorSubmitted(false)
+                          setDonorConsent(false)
+                        }}
+                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-[var(--border-main)] bg-[var(--bg-elevated)] text-xs font-bold hover:border-[#B91C35] transition-colors cursor-pointer"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5 text-[#B91C35]" />
+                        <span>Simulate Another Selection</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  /* Interactive Form */
+                  <form onSubmit={handleDonorSubmit} className="space-y-6">
+                    {/* Field 1: Blood Group */}
+                    <div className="space-y-2">
+                      <label className="block text-xs font-bold uppercase tracking-wider text-[var(--text-secondary)]">
+                        1. Select Your Blood Group:
+                      </label>
+                      <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
+                        {BLOOD_GROUPS.map(group => (
+                          <button
+                            key={group}
+                            type="button"
+                            onClick={() => setDonorGroup(group)}
+                            className={`py-2 px-2 text-xs font-bold rounded-xl border transition-all cursor-pointer ${
+                              donorGroup === group
+                                ? 'bg-[#B91C35] text-white border-[#B91C35] shadow-sm'
+                                : 'bg-[var(--bg-elevated)] text-[var(--text-primary)] border-[var(--border-main)] hover:border-[#B91C35]/50'
+                            }`}
+                          >
+                            {group}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Field 2: Supported City */}
+                    <div className="space-y-2">
+                      <label className="block text-xs font-bold uppercase tracking-wider text-[var(--text-secondary)]">
+                        2. Select Your City (Supported Scope):
+                      </label>
+                      <div className="grid grid-cols-2 gap-3">
+                        {(['Delhi', 'Lucknow'] as City[]).map(city => (
+                          <button
+                            key={city}
+                            type="button"
+                            onClick={() => setDonorCity(city)}
+                            className={`py-2.5 px-4 text-xs font-bold rounded-xl border transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                              donorCity === city
+                                ? 'bg-[#B91C35] text-white border-[#B91C35] shadow-sm'
+                                : 'bg-[var(--bg-elevated)] text-[var(--text-primary)] border-[var(--border-main)] hover:border-[#B91C35]/50'
+                            }`}
+                          >
+                            <MapPin className="w-3.5 h-3.5" />
+                            <span>{city}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Explicit Consent Notice & Checkbox */}
+                    <div className="bg-[var(--bg-elevated)] border border-[var(--border-main)] rounded-2xl p-4 space-y-3">
+                      <div className="flex items-start gap-3">
+                        <input
+                          id="donor-consent-checkbox"
+                          type="checkbox"
+                          checked={donorConsent}
+                          onChange={e => setDonorConsent(e.target.checked)}
+                          className="w-4 h-4 mt-0.5 rounded border-[var(--border-main)] text-[#B91C35] focus:ring-[#B91C35] accent-[#B91C35] cursor-pointer shrink-0"
+                        />
+                        <label
+                          htmlFor="donor-consent-checkbox"
+                          className="text-xs text-[var(--text-secondary)] leading-relaxed select-none cursor-pointer"
+                        >
+                          <strong className="text-[var(--text-primary)]">Voluntary Opt-In Agreement:</strong> I consent to receive urgent requirements for my blood group in {donorCity}. I understand that RaktSetu will never store my phone number and that contact sharing requires my explicit acceptance.
+                        </label>
+                      </div>
+
+                      <div className="pt-2 border-t border-[var(--border-main)] flex items-center gap-2 text-[11px] text-amber-700 dark:text-amber-400">
+                        <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                        <span>Interactive Prototype: This submission will demonstrate the workflow without persisting data.</span>
+                      </div>
+                    </div>
+
+                    {donorError && (
+                      <p className="text-xs text-rose-600 dark:text-rose-400 font-semibold flex items-center gap-1.5">
+                        <AlertCircle className="w-4 h-4 shrink-0" />
+                        <span>{donorError}</span>
+                      </p>
+                    )}
+
+                    {/* Submit Button */}
+                    <button
+                      type="submit"
+                      className="w-full py-3 rounded-xl bg-[#B91C35] hover:bg-[#A0162D] text-white font-bold text-xs flex items-center justify-center gap-2 transition-colors shadow-md shadow-[#B91C35]/20 cursor-pointer"
+                    >
+                      <HeartHandshake className="w-4 h-4" />
+                      <span>Demonstrate Volunteer Enrollment ({donorGroup} • {donorCity})</span>
+                    </button>
+                  </form>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Donor Network Preview Cards */}
+          <div className="mt-14 pt-10 border-t border-[var(--border-main)]">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+              <div>
+                <h3 className="text-lg font-bold text-[var(--text-primary)] flex items-center gap-2">
+                  <Users className="w-4 h-4 text-[#B91C35]" />
+                  <span>Illustrative Donor Network Cards</span>
+                </h3>
+                <p className="text-xs text-[var(--text-secondary)]">
+                  Preview of how community volunteer standby cards will be presented to moderators.
+                </p>
+              </div>
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 shrink-0">
+                <AlertTriangle className="w-3 h-3" />
+                Sample profiles — demo data
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {SAMPLE_DONOR_PROFILES.map(profile => (
+                <div
+                  key={profile.alias}
+                  className="bg-[var(--bg-surface)] border border-[var(--border-main)] rounded-2xl p-4 shadow-sm space-y-3"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-mono font-bold text-[var(--text-primary)]">
+                      {profile.alias}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-lg bg-[#FFF1F2] dark:bg-[#B91C35]/20 text-[#B91C35] font-extrabold text-xs border border-[#B91C35]/25">
+                      {profile.group}
+                    </span>
+                  </div>
+
+                  <div className="text-xs text-[var(--text-secondary)] space-y-1">
+                    <p className="flex items-center gap-1 font-medium">
+                      <MapPin className="w-3 h-3 text-[#B91C35]" />
+                      <span>{profile.city}</span>
+                    </p>
+                    <p className="text-[11px] text-slate-400">{profile.notes}</p>
+                  </div>
+
+                  <div className="pt-2 border-t border-[var(--border-main)] flex items-center justify-between text-[10px]">
+                    <span className="text-emerald-700 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                      {profile.status}
+                    </span>
+                    <span className="text-amber-600 dark:text-amber-400 font-medium">
+                      Mockup Profile
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <p className="text-[11px] text-center text-[var(--text-secondary)] mt-4">
+              * The donor cards above are mockups for demonstration. RaktSetu does not claim active registered donor availability until real coordination is deployed.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* How It Works & Future Scope Section */}
+      <section id="how-it-works" className="py-16 lg:py-24 border-t border-[var(--border-main)]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-16">
+          {/* Header */}
+          <div className="text-center max-w-2xl mx-auto space-y-2">
             <span className="text-xs font-bold uppercase tracking-wider text-[#B91C35]">
-              System Architecture
+              System Transparency
             </span>
-            <h2 className="text-3xl sm:text-4xl font-extrabold text-[var(--text-primary)] mt-1.5 tracking-tight">
-              Planned RaktSetu Workflow
+            <h2 className="text-3xl sm:text-4xl font-extrabold text-[var(--text-primary)] tracking-tight">
+              How RaktSetu Works
             </h2>
-            <p className="text-sm sm:text-base text-[var(--text-secondary)] mt-2 leading-relaxed">
-              Architecture specifications for transparent discovery, donor consent, and human verification before dispatch.
+            <p className="text-sm text-[var(--text-secondary)] leading-relaxed">
+              We clearly distinguish features that work today from our upcoming release roadmap.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Pillar 1 */}
-            <div className="bg-[var(--bg-surface)] border border-[var(--border-main)] rounded-2xl p-7 shadow-sm hover:border-[#B91C35]/50 transition-all flex flex-col justify-between">
-              <div>
-                <div className="w-12 h-12 rounded-xl bg-[#FFF1F2] dark:bg-[#B91C35]/20 text-[#B91C35] flex items-center justify-center font-bold mb-5">
-                  <Database className="w-6 h-6" />
+          {/* Side-by-Side: Working Today vs Future Scope */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+            {/* Column 1: Working Today */}
+            <div className="bg-[var(--bg-surface)] border border-[var(--border-main)] rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
+              <div className="flex items-center justify-between pb-4 border-b border-[var(--border-main)]">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold">
+                    <CheckCircle2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-base text-[var(--text-primary)]">
+                      Working Today
+                    </h3>
+                    <p className="text-[11px] text-[var(--text-secondary)]">
+                      Active features running in this prototype
+                    </p>
+                  </div>
                 </div>
-                <h3 className="text-lg font-bold text-[var(--text-primary)] mb-2">
-                  1. Source-Attributed Stock (Planned)
-                </h3>
-                <p className="text-xs sm:text-sm text-[var(--text-secondary)] leading-relaxed">
-                  Designed to ingest reported data feeds with strict freshness timestamps, ensuring caregivers and patients see exactly when and where data was reported before contacting facilities.
-                </p>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/25">
+                  Live in Prototype
+                </span>
               </div>
-              <div className="mt-6 pt-4 border-t border-[var(--border-main)] text-xs text-[#B91C35] font-bold flex items-center gap-1">
-                <span>Planned Ingestion Engine</span>
-                <ChevronRight className="w-3.5 h-3.5" />
+
+              <div className="space-y-4 text-xs sm:text-sm">
+                <div className="p-4 rounded-2xl bg-[var(--bg-elevated)] border border-[var(--border-main)] space-y-1.5">
+                  <h4 className="font-bold text-[var(--text-primary)] flex items-center gap-2">
+                    <Database className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                    <span>Real e-RaktKosh Feed Ingestion</span>
+                  </h4>
+                  <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+                    Ingests government portal availability feeds for Delhi and Lucknow hospitals, clearly preserving source timestamps and labeling stale snapshots (&gt;24h old).
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-[var(--bg-elevated)] border border-[var(--border-main)] space-y-1.5">
+                  <h4 className="font-bold text-[var(--text-primary)] flex items-center gap-2">
+                    <Bot className="w-4 h-4 text-[#0088cc] shrink-0" />
+                    <span>Telegram Discovery Bot Prototype</span>
+                  </h4>
+                  <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+                    Interactive Telegram assistant supporting <code>/find &lt;Group&gt; &lt;City&gt;</code> commands, inline keyboard queries, and automated emergency disclaimers.
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-[var(--bg-elevated)] border border-[var(--border-main)] space-y-1.5">
+                  <h4 className="font-bold text-[var(--text-primary)] flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4 text-[#B91C35] shrink-0" />
+                    <span>Fail-Closed Provenance Isolation</span>
+                  </h4>
+                  <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+                    Demo records are excluded by default. Real hospital data is prioritized, and contact information is strictly scrubbed from raw feeds.
+                  </p>
+                </div>
               </div>
             </div>
 
-            {/* Pillar 2 */}
-            <div className="bg-[var(--bg-surface)] border border-[var(--border-main)] rounded-2xl p-7 shadow-sm hover:border-[#B91C35]/50 transition-all flex flex-col justify-between">
-              <div>
-                <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-800 text-[#142433] dark:text-slate-200 flex items-center justify-center font-bold mb-5">
-                  <HeartHandshake className="w-6 h-6" />
+            {/* Column 2: Future Scope */}
+            <div id="future-scope" className="bg-[var(--bg-surface)] border border-[var(--border-main)] rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
+              <div className="flex items-center justify-between pb-4 border-b border-[var(--border-main)]">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-[#FFF1F2] dark:bg-[#B91C35]/20 text-[#B91C35] flex items-center justify-center font-bold">
+                    <Sparkles className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-base text-[var(--text-primary)]">
+                      Future Scope
+                    </h3>
+                    <p className="text-[11px] text-[var(--text-secondary)]">
+                      Planned donor coordination & scale architecture
+                    </p>
+                  </div>
                 </div>
-                <h3 className="text-lg font-bold text-[var(--text-primary)] mb-2">
-                  2. Consented Donor Relay (Planned)
-                </h3>
-                <p className="text-xs sm:text-sm text-[var(--text-secondary)] leading-relaxed">
-                  In development: a privacy-preserving notification workflow via Telegram Bot API so opted-in donors receive alerts without ever revealing personal contact numbers publicly.
-                </p>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/25">
+                  Roadmap
+                </span>
               </div>
-              <div className="mt-6 pt-4 border-t border-[var(--border-main)] text-xs text-[#64748B] dark:text-slate-400 font-bold flex items-center gap-1">
-                <span>Architecture Specification</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-              </div>
-            </div>
 
-            {/* Pillar 3 */}
-            <div className="bg-[var(--bg-surface)] border border-[var(--border-main)] rounded-2xl p-7 shadow-sm hover:border-[#B91C35]/50 transition-all flex flex-col justify-between">
-              <div>
-                <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-800 text-[#142433] dark:text-slate-200 flex items-center justify-center font-bold mb-5">
-                  <Bot className="w-6 h-6" />
+              <div className="space-y-4 text-xs sm:text-sm">
+                <div className="p-4 rounded-2xl bg-[var(--bg-elevated)] border border-[var(--border-main)] space-y-1.5">
+                  <h4 className="font-bold text-[var(--text-primary)] flex items-center gap-2">
+                    <HeartHandshake className="w-4 h-4 text-[#B91C35] shrink-0" />
+                    <span>Consent-Based Volunteer Matching</span>
+                  </h4>
+                  <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+                    Emergency blood requests verified by community moderators dispatch private Telegram alerts. Donors accept or decline, and handles are shared only with explicit consent.
+                  </p>
                 </div>
-                <h3 className="text-lg font-bold text-[var(--text-primary)] mb-2">
-                  3. Gemma 4 AI Assistant (Planned)
-                </h3>
-                <p className="text-xs sm:text-sm text-[var(--text-secondary)] leading-relaxed">
-                  Planned integration: lightweight local Gemma 4 / rule-based fallback to extract structured location and urgency parameters, strictly validated by deterministic backend code.
-                </p>
-              </div>
-              <div className="mt-6 pt-4 border-t border-[var(--border-main)] text-xs text-[#64748B] dark:text-slate-400 font-bold flex items-center gap-1">
-                <span>Model & Fallback Design</span>
-                <ChevronRight className="w-3.5 h-3.5" />
+
+                <div className="p-4 rounded-2xl bg-[var(--bg-elevated)] border border-[var(--border-main)] space-y-1.5">
+                  <h4 className="font-bold text-[var(--text-primary)] flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                    <span>Specific Blood Component Subtypes</span>
+                  </h4>
+                  <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+                    Granular tracking for Packed Red Blood Cells (PRBC), Single Donor Platelets (SDP), and Fresh Frozen Plasma (FFP) to support oncology and surgical needs.
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-[var(--bg-elevated)] border border-[var(--border-main)] space-y-1.5">
+                  <h4 className="font-bold text-[var(--text-primary)] flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-teal-600 dark:text-teal-400 shrink-0" />
+                    <span>Geographic & Multilingual Expansion</span>
+                  </h4>
+                  <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+                    Scaling beyond Delhi and Lucknow to tier-2 district centers, paired with voice-assisted accessibility and Hindi language localization.
+                  </p>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Ethical Safeguards & Medical Disclaimer Section */}
-      <section id="safeguards" className="py-14 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      {/* Telegram Community Call to Action Card */}
+      <section className="py-12 bg-gradient-to-r from-[#0088cc]/10 via-[#0077b5]/5 to-transparent border-t border-[var(--border-main)]">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="bg-[var(--bg-surface)] border border-[#0088cc]/30 rounded-3xl p-6 sm:p-10 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-6 text-center sm:text-left">
+            <div className="space-y-2">
+              <div className="inline-flex items-center gap-2 text-xs font-bold text-[#0088cc] uppercase tracking-wider">
+                <Bot className="w-4 h-4" />
+                <span>Telegram Integration Prototype</span>
+              </div>
+              <h3 className="text-2xl font-extrabold text-[var(--text-primary)] tracking-tight">
+                Connect Directly via Telegram
+              </h3>
+              <p className="text-xs sm:text-sm text-[var(--text-secondary)] max-w-xl leading-relaxed">
+                Search nearby hospital stock records right from your messaging app using our lightweight Telegram discovery bot.
+              </p>
+            </div>
+
+            <div className="shrink-0">
+              <a
+                href={telegramBotUrl || '#telegram-info'}
+                onClick={handleOpenTelegram}
+                target={telegramBotUrl ? '_blank' : undefined}
+                rel={telegramBotUrl ? 'noopener noreferrer' : undefined}
+                className="inline-flex items-center gap-2.5 px-6 py-3 rounded-xl bg-gradient-to-r from-[#0088cc] to-[#0077b5] text-white font-bold text-xs shadow-md shadow-[#0088cc]/25 hover:opacity-95 transition-opacity cursor-pointer"
+              >
+                <Bot className="w-4 h-4" />
+                <span>Chat with RaktSetu on Telegram</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Ethical Safeguards & Medical Notice Section */}
+      <section id="trust-safety" className="py-14 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 border-t border-[var(--border-main)]">
         <div className="rounded-3xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/70 dark:bg-amber-950/20 p-7 sm:p-10">
           <div className="flex flex-col sm:flex-row items-start gap-5">
             <div className="w-12 h-12 rounded-2xl bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-300 flex items-center justify-center shrink-0">
@@ -910,19 +1368,19 @@ export default function App() {
             </div>
             <div className="space-y-3.5">
               <h3 className="text-lg sm:text-xl font-extrabold text-amber-950 dark:text-amber-200 tracking-tight">
-                Ethical Safeguards & Emergency Medical Notice
+                Trust, Ethics & Emergency Medical Guidance
               </h3>
               <p className="text-xs sm:text-sm text-amber-900/90 dark:text-amber-300/90 leading-relaxed">
-                RaktSetu is a student/hackathon technical prototype built to showcase transparent data aggregation and privacy-first coordination. It is <strong>not a certified emergency medical service</strong>.
+                RaktSetu is an open-source technical prototype built to demonstrate transparent health-data aggregation and privacy-preserving volunteer coordination.
               </p>
               <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-amber-900/80 dark:text-amber-300/80 pt-1">
                 <li className="flex items-center gap-2.5">
                   <CheckCircle2 className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
-                  <span>Never guarantees physical blood inventory without direct bank confirmation.</span>
+                  <span>Never guarantees physical blood inventory without direct hospital verification.</span>
                 </li>
                 <li className="flex items-center gap-2.5">
                   <CheckCircle2 className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
-                  <span>External hospital feeds, scraping tools, and Telegram bots are disconnected in this UI demo.</span>
+                  <span>External portal stock feeds are unverified snapshots and may be delayed or stale.</span>
                 </li>
                 <li className="flex items-center gap-2.5">
                   <CheckCircle2 className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
@@ -930,13 +1388,70 @@ export default function App() {
                 </li>
                 <li className="flex items-center gap-2.5">
                   <CheckCircle2 className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
-                  <span>Always call official emergency services (112 / 108) for acute trauma response.</span>
+                  <span>For acute trauma or life-threatening emergencies, immediately dial <strong>112</strong> (India&apos;s National Emergency Number).</span>
                 </li>
               </ul>
             </div>
           </div>
         </div>
       </section>
+
+      {/* Telegram Configuration Modal / Information Card */}
+      {showTelegramModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-[var(--bg-surface)] border border-[var(--border-main)] rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl space-y-5 animate-in fade-in duration-200">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-[#0088cc]/15 text-[#0088cc] flex items-center justify-center">
+                  <Bot className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="font-extrabold text-base text-[var(--text-primary)]">
+                    Telegram Discovery Bot
+                  </h4>
+                  <p className="text-xs text-[var(--text-secondary)]">
+                    Local prototype configuration
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowTelegramModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-[var(--text-primary)]"
+                aria-label="Close dialog"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs text-[var(--text-secondary)] leading-relaxed">
+              <p>
+                The RaktSetu Telegram bot currently runs as a local prototype service. To test it locally:
+              </p>
+              <div className="bg-slate-100 dark:bg-slate-900 rounded-xl p-3 font-mono text-[11px] text-slate-800 dark:text-slate-200">
+                python -m backend.app.bot.main
+              </div>
+              <p>
+                To connect this website&apos;s button directly to your live bot, set the environment variable in <code className="px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[var(--text-primary)]">frontend/.env.local</code>:
+              </p>
+              <div className="bg-slate-100 dark:bg-slate-900 rounded-xl p-3 font-mono text-[11px] text-slate-800 dark:text-slate-200">
+                VITE_TELEGRAM_BOT_URL=https://t.me/your_bot_username
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Note: In accordance with our security principles, the bot token is loaded strictly on the backend and is never exposed in frontend code.
+              </p>
+            </div>
+
+            <div className="pt-2 flex justify-end">
+              <button
+                onClick={() => setShowTelegramModal(false)}
+                className="px-5 py-2 rounded-xl bg-[#B91C35] text-white text-xs font-bold hover:bg-[#A0162D] transition-colors cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Footer */}
       <footer className="border-t border-[var(--border-main)] bg-[var(--bg-surface)] py-12 transition-colors">
@@ -950,14 +1465,12 @@ export default function App() {
                 RaktSetu (रक्तसेतु)
               </span>
               <span className="text-xs text-[var(--text-secondary)] font-medium">
-                • Open-Source Hackathon Prototype
+                • Open-Source Healthcare Initiative
               </span>
             </div>
 
             <div className="flex flex-wrap items-center gap-4 text-xs text-[var(--text-secondary)] font-medium">
-              <span>Stack: FastAPI + React + Three.js + Tailwind v4</span>
-              <span>•</span>
-              <span>Target Scope: Delhi & Lucknow</span>
+              <span>Delhi & Lucknow Scope</span>
               <span>•</span>
               <a
                 href="https://github.com/rayyan-sidd/RaktSetu"
@@ -967,11 +1480,18 @@ export default function App() {
               >
                 GitHub Repository
               </a>
+              <span>•</span>
+              <a
+                href="#trust-safety"
+                className="hover:text-[#B91C35] underline"
+              >
+                Trust & Safety
+              </a>
             </div>
           </div>
 
           <div className="mt-8 pt-6 border-t border-[var(--border-main)] text-center text-xs text-[var(--text-secondary)]">
-            © 2026 RaktSetu Maintainers and Contributors. Licensed under the MIT License.
+            &copy; 2026 RaktSetu Maintainers and Contributors. Licensed under the MIT License.
           </div>
         </div>
       </footer>
