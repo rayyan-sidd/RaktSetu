@@ -1,0 +1,147 @@
+{
+  "_notice": "CRITICAL NOTICE: THIS FILE CONTAINS REDACTED SYNTHETIC TEST FIXTURES ONLY. IT DOES NOT CONTAIN LIVE, NEWLY RETRIEVED, OR SENSITIVE DATA. ALL NAMES AND IDENTIFIERS ARE SYNTHETIC OR PUBLIC FICTIONAL SAMPLES DESIGNED SOLELY FOR UNIT TESTING THE PARSER.",
+  "synthetic_delhi_response": {
+    "draw": 1,
+    "recordsTotal": 5,
+    "recordsFiltered": 5,
+    "data": [
+      [
+        "1",
+        "SYNTHETIC AIIMS BLOOD BANK<br/>Sri Aurobindo Marg, Ansari Nagar East, New Delhi, Delhi 110029<br/>Phone: 011-26594438, Fax: 011-26588663, Email: test-aiims@redacted.example.gov.in",
+        "Govt.",
+        "<p class='text-success'>Available, B+Ve:5, O+Ve:8</p>",
+        "2026-10-16 04:31:04",
+        "Blood Bank"
+      ],
+      [
+        "2",
+        "SYNTHETIC SAFDARJUNG TRANSFUSION CENTER<br/>Ring Road, Safdarjung Enclave, New Delhi, Delhi 110029<br/>Contact: 011-26165060, Email: safdarjung@redacted.example.gov.in",
+        "Govt.",
+        "<p class='text-danger'><b>Whole Blood</b>Not Available Search for another Component",
+        "<img src='../hisglobal/bbpublic/images/transparent/live_stock.png'>",
+        "Blood Bank"
+      ],
+      [
+        "3",
+        "SYNTHETIC RED CROSS REGIONAL DEPOT<br/>1 Red Cross Road, Central Delhi, Delhi 110001<br/>Tel: 011-23716441",
+        "Charitable/Vol",
+        "<p class='text-success'>Available, A+Ve:12, AB-Ve:2</p>",
+        "15-Oct-2026 14:00:00",
+        "Blood Bank"
+      ],
+      [
+        "4",
+        "SYNTHETIC APOLLO CLINICAL DEPOT<br/>Sarita Vihar, Delhi Mathura Road, New Delhi, Delhi 110076",
+        "Private",
+        "<p class='text-success'>Available, O-Ve:4</p>",
+        "2026-10-15 10:00:00",
+        "BSU"
+      ],
+      [
+        "5",
+        "SYNTHETIC MAX HEALTHCARE STORAGE<br/>Press Enclave Road, Saket, New Delhi, Delhi 110017<br/>Mobile: 9876543210",
+        "Private",
+        "<p class='text-success'>Available, B-Ve:1</p>",
+        null,
+        "Blood Bank"
+      ]
+    ]
+  },
+  "synthetic_lucknow_response": {
+    "draw": 1,
+    "recordsTotal": 3,
+    "recordsFiltered": 3,
+    "data": [
+      [
+        "1",
+        "SYNTHETIC KGMU BLOOD DEPOT<br/>Shah Mina Road, Chowk, Lucknow, Uttar Pradesh 226003<br/>Phone: 0522-2257450, Email: kgmu-blood@redacted.example.edu",
+        "Govt.",
+        "<p class='text-success'>Available, A+Ve:10, B+Ve:14, O+Ve:6</p>",
+        "2026-10-16 02:15:00",
+        "Blood Bank"
+      ],
+      [
+        "2",
+        "SYNTHETIC SGPGI TRANSFUSION MEDICINE<br/>Raebareli Road, Lucknow, Uttar Pradesh 226014",
+        "Govt.",
+        "<p class='text-success'>Available, AB+Ve:3</p>",
+        "<img src='../hisglobal/bbpublic/images/transparent/live_stock.png'>",
+        "Blood Bank"
+      ],
+      [
+        "3",
+        "SYNTHETIC CHARITABLE LUCKNOW TRUST<br/>Hazratganj, Lucknow, Uttar Pradesh 226001",
+        "null",
+        "<p class='text-danger'><b>Packed Red Blood Cells</b>Not Available",
+        "",
+        null
+      ]
+    ]
+  },
+  "edge_case_rows": {
+    "malformed_group_in_availability": [
+      "10",
+      "SYNTHETIC RESEARCH INSTITUTE<br/>Ansari Nagar, New Delhi<br/>Phone: 011-12345678",
+      "Govt.",
+      "<p class='text-success'>Available, Bombay+Ve:5, O+Ve:7</p>",
+      "2026-10-16 01:00:00",
+      "Blood Bank"
+    ],
+    "negative_or_unparseable_quantity": [
+      "11",
+      "SYNTHETIC CITY DEPOT<br/>Connaught Place, New Delhi",
+      "Private",
+      "<p class='text-success'>Available, A+Ve:-3, B+Ve:abc, O+Ve:4</p>",
+      "2026-10-16 01:00:00",
+      "Blood Bank"
+    ],
+    "available_keyword_without_quantities": [
+      "12",
+      "SYNTHETIC HOSPITAL<br/>Karol Bagh, New Delhi",
+      "Govt.",
+      "<p class='text-success'>Available on request only</p>",
+      "2026-10-16 01:00:00",
+      "Blood Bank"
+    ],
+    "missing_facility_name": [
+      "13",
+      "<br/>Phone: 011-99999999<br/>Email: test@example.com",
+      "Govt.",
+      "<p class='text-success'>Available, O+Ve:2</p>",
+      "2026-10-16 01:00:00",
+      "Blood Bank"
+    ],
+    "empty_availability_html": [
+      "14",
+      "SYNTHETIC HOSPITAL EMPTY AVAIL<br/>Rohini, New Delhi",
+      "Govt.",
+      "",
+      "2026-10-16 01:00:00",
+      "Blood Bank"
+    ],
+    "unrecognized_timestamp_format": [
+      "15",
+      "SYNTHETIC HOSPITAL BAD TIMESTAMP<br/>Saket, New Delhi",
+      "Govt.",
+      "<p class='text-success'>Available, O+Ve:3</p>",
+      "Updated about an hour ago",
+      "Blood Bank"
+    ],
+    "duplicate_facility_earlier": [
+      "16",
+      "SYNTHETIC DUPLICATE FACILITY<br/>Chowk, Lucknow",
+      "Govt.",
+      "<p class='text-success'>Available, O+Ve:4</p>",
+      "2026-10-15 10:00:00",
+      "Blood Bank"
+    ],
+    "duplicate_facility_later_newer_ts": [
+      "17",
+      "SYNTHETIC DUPLICATE FACILITY<br/>Chowk, Lucknow",
+      "Govt.",
+      "<p class='text-success'>Available, O+Ve:9</p>",
+      "2026-10-16 08:00:00",
+      "Blood Bank"
+    ]
+  }
+}
