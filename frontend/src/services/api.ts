@@ -160,13 +160,14 @@ export interface ReportFreshnessInfo {
   secondaryNote?: string
   isLiveBadge: boolean
   isDemo: boolean
+  isStale?: boolean
 }
 
 /**
  * Determine freshness and timestamp presentation based on provenance.
  * Strictly distinguishes source-reported time from RaktSetu retrieval time,
  * handles live stock badge indicators without claiming exact times or live guarantees,
- * and maintains demo snapshot distinction.
+ * identifies stale records (>24h), and maintains demo snapshot distinction.
  */
 export function getReportFreshnessInfo(report?: StockReport | null): ReportFreshnessInfo {
   if (!report) {
@@ -219,16 +220,28 @@ export function getReportFreshnessInfo(report?: StockReport | null): ReportFresh
     const retrievalFormatted = report.retrieval_timestamp
       ? formatTimestamp(report.retrieval_timestamp)
       : null
+
+    // Check if timestamp is older than 24 hours relative to retrieval (or current time)
+    const srcTime = new Date(report.source_reported_timestamp).getTime()
+    const baselineTime = report.retrieval_timestamp
+      ? new Date(report.retrieval_timestamp).getTime()
+      : Date.now()
+    const isStale = !isNaN(srcTime) && (baselineTime - srcTime) > 24 * 60 * 60 * 1000
+
+    let note = retrievalFormatted ? `Retrieved by RaktSetu: ${retrievalFormatted.localDisplay}` : undefined
+    if (isStale) {
+      note = `⚠️ Stale report (>24h old) • May not reflect current physical stock. ${note || ''}`.trim()
+    }
+
     return {
       type: 'source_timestamp',
       primaryLabel: 'Hospital Reported',
       primaryDisplay: srcFormatted.localDisplay,
       utcDisplay: srcFormatted.utcDisplay,
-      secondaryNote: retrievalFormatted
-        ? `Retrieved by RaktSetu: ${retrievalFormatted.localDisplay}`
-        : undefined,
+      secondaryNote: note,
       isLiveBadge: false,
       isDemo: false,
+      isStale,
     }
   }
 
@@ -243,4 +256,23 @@ export function getReportFreshnessInfo(report?: StockReport | null): ReportFresh
     isLiveBadge: false,
     isDemo: false,
   }
+}
+
+/**
+ * Filter and sort blood banks for discovery presentation.
+ * By default (includeDemo = false), demo facilities are excluded so that only external
+ * e-RaktKosh records are shown.
+ * When includeDemo is enabled (true), external records are placed first, followed by demo records.
+ * The relative ordering of facilities within each partition is strictly preserved.
+ */
+export function filterAndSortBloodBanks(
+  banks: BloodBank[],
+  includeDemo: boolean = false
+): BloodBank[] {
+  if (!includeDemo) {
+    return banks.filter(bank => bank.source_type !== 'demo')
+  }
+  const external = banks.filter(bank => bank.source_type !== 'demo')
+  const demo = banks.filter(bank => bank.source_type === 'demo')
+  return [...external, ...demo]
 }

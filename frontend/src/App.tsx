@@ -23,6 +23,7 @@ import {
   fetchBloodBanks,
   formatTimestamp,
   getReportFreshnessInfo,
+  filterAndSortBloodBanks,
   type BloodBank,
 } from './services/api'
 
@@ -75,19 +76,23 @@ export default function App() {
   // Search filter states
   const [selectedCity, setSelectedCity] = useState<CityFilter>('Delhi')
   const [selectedGroup, setSelectedGroup] = useState<GroupFilter>('O+')
+  const [includeDemo, setIncludeDemo] = useState<boolean>(false)
   const [showConsentDonorAlert, setShowConsentDonorAlert] = useState(true)
 
   // API State
   const [banks, setBanks] = useState<BloodBank[]>([])
-  const [bankCount, setBankCount] = useState<number>(0)
   const [dataNotice, setDataNotice] = useState<string>('')
   const [dataTimestamp, setDataTimestamp] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
   const [retryTrigger, setRetryTrigger] = useState<number>(0)
 
-  const hasDemo = banks.some(b => b.source_type === 'demo')
-  const hasExternal = banks.some(b => b.source_type === 'external_source')
+  // Filter and sort visible banks: real data first, demo excluded by default (OFF)
+  const visibleBanks = filterAndSortBloodBanks(banks, includeDemo)
+  const visibleCount = visibleBanks.length
+
+  const hasDemo = visibleBanks.some(b => b.source_type === 'demo')
+  const hasExternal = visibleBanks.some(b => b.source_type === 'external_source')
 
   // Fetch actual discovery records from backend API
   useEffect(() => {
@@ -102,7 +107,6 @@ export default function App() {
     )
       .then(data => {
         setBanks(data.items)
-        setBankCount(data.count)
         setDataNotice(data.data_notice)
         setDataTimestamp(data.data_timestamp || null)
         setIsLoading(false)
@@ -129,6 +133,7 @@ export default function App() {
   const handleResetFilters = () => {
     setSelectedCity('All')
     setSelectedGroup('All')
+    setIncludeDemo(false)
   }
 
   return (
@@ -448,28 +453,59 @@ export default function App() {
             </div>
           </div>
 
-          {/* Voluntary Donor Alert Checkbox (Simulated) */}
-          <div className="mt-8 pt-5 border-t border-[var(--border-main)] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <label className="flex items-center gap-3 cursor-pointer text-xs sm:text-sm text-[var(--text-secondary)]">
-              <input
-                type="checkbox"
-                checked={showConsentDonorAlert}
-                onChange={e => setShowConsentDonorAlert(e.target.checked)}
-                className="w-4 h-4 rounded text-[#B91C35] focus:ring-[#B91C35] accent-[#B91C35]"
-              />
-              <span>
-                Simulate voluntary donor notification matching for <strong>{selectedCity === 'All' ? 'Delhi & Lucknow' : selectedCity}</strong> (Mock preview — live Telegram notifications are not connected)
-              </span>
-            </label>
+          {/* Controls Bar: Toggles & Provenance Note */}
+          <div className="mt-8 pt-5 border-t border-[var(--border-main)] flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center gap-5">
+              {/* Include demo data toggle */}
+              <label
+                htmlFor="toggle-include-demo"
+                className="flex items-center gap-2.5 cursor-pointer text-xs sm:text-sm font-semibold text-[var(--text-primary)] select-none"
+              >
+                <input
+                  id="toggle-include-demo"
+                  type="checkbox"
+                  checked={includeDemo}
+                  onChange={e => setIncludeDemo(e.target.checked)}
+                  className="w-4 h-4 rounded border-[var(--border-main)] text-[#B91C35] focus:ring-[#B91C35] accent-[#B91C35] cursor-pointer"
+                />
+                <span>Include demo data</span>
+                {includeDemo ? (
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30">
+                    Demo Appended
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
+                    Real Data Only (Default)
+                  </span>
+                )}
+              </label>
 
-            <div className="text-xs text-[var(--text-secondary)] flex items-center gap-1.5 font-medium">
+              {/* Voluntary Donor Alert Checkbox (Simulated) */}
+              <label
+                htmlFor="checkbox-donor-alert"
+                className="flex items-center gap-2.5 cursor-pointer text-xs text-[var(--text-secondary)] select-none hover:text-[var(--text-primary)] transition-colors"
+              >
+                <input
+                  id="checkbox-donor-alert"
+                  type="checkbox"
+                  checked={showConsentDonorAlert}
+                  onChange={e => setShowConsentDonorAlert(e.target.checked)}
+                  className="w-4 h-4 rounded border-[var(--border-main)] text-[#B91C35] focus:ring-[#B91C35] accent-[#B91C35] cursor-pointer"
+                />
+                <span>
+                  Simulate voluntary donor notification preview
+                </span>
+              </label>
+            </div>
+
+            <div className="text-xs text-[var(--text-secondary)] flex items-center gap-1.5 font-medium shrink-0">
               <Database className="w-3.5 h-3.5 text-amber-500" />
               <span>
                 {hasExternal && hasDemo
-                  ? 'Mixed records: Synthetic demo data and official e-RaktKosh snapshots'
+                  ? 'Showing e-RaktKosh feed first, followed by demo dataset'
                   : hasExternal
                   ? 'Official source-reported e-RaktKosh snapshots • Source inventory is unverified'
-                  : 'All records below are synthetic demo data • External APIs not connected'}
+                  : 'All visible records are synthetic demo data'}
               </span>
             </div>
           </div>
@@ -485,7 +521,7 @@ export default function App() {
               </span>
               {!isLoading && !error && (
                 <span className="text-xs font-normal text-[var(--text-secondary)]">
-                  ({bankCount} {bankCount === 1 ? 'facility' : 'facilities'} reported
+                  ({visibleCount} {visibleCount === 1 ? 'facility' : 'facilities'} reported
                   {dataTimestamp ? ` • Snapshot: ${formatTimestamp(dataTimestamp).localDisplay}` : ''})
                 </span>
               )}
@@ -493,7 +529,7 @@ export default function App() {
             <span className="text-xs text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1.5">
               <AlertTriangle className="w-3.5 h-3.5" />
               {hasExternal && hasDemo
-                ? 'Mixed demo & source-reported records'
+                ? 'Mixed records: e-RaktKosh first, demo data appended'
                 : hasExternal
                 ? 'Official source-reported snapshots (unverified)'
                 : 'Simulated demonstration records only'}
@@ -561,7 +597,7 @@ export default function App() {
           )}
 
           {/* Empty State */}
-          {!isLoading && !error && banks.length === 0 && (
+          {!isLoading && !error && visibleBanks.length === 0 && (
             <div className="bg-[var(--bg-surface)] border border-[var(--border-main)] rounded-2xl p-10 text-center space-y-4 shadow-sm">
               <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 text-[var(--text-secondary)] flex items-center justify-center mx-auto">
                 <Search className="w-6 h-6 text-slate-400" />
@@ -573,22 +609,37 @@ export default function App() {
                 <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
                   No blood bank records matched your criteria for <strong>{selectedCity === 'All' ? 'Delhi & Lucknow' : selectedCity}</strong>{' '}
                   {selectedGroup !== 'All' ? `with blood group ${selectedGroup}` : ''}.
+                  {!includeDemo && banks.some(b => b.source_type === 'demo') && (
+                    <span className="block mt-1 text-amber-600 dark:text-amber-400">
+                      (Synthetic demo records exist for this filter. Enable &ldquo;Include demo data&rdquo; to view them.)
+                    </span>
+                  )}
                 </p>
               </div>
-              <button
-                onClick={handleResetFilters}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-[var(--border-main)] bg-[var(--bg-elevated)] text-xs font-bold hover:border-[#B91C35]/50 transition-all cursor-pointer"
-              >
-                <FilterX className="w-3.5 h-3.5 text-[#B91C35]" />
-                <span>Reset Filters (Show All)</span>
-              </button>
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                <button
+                  onClick={handleResetFilters}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-[var(--border-main)] bg-[var(--bg-elevated)] text-xs font-bold hover:border-[#B91C35]/50 transition-all cursor-pointer"
+                >
+                  <FilterX className="w-3.5 h-3.5 text-[#B91C35]" />
+                  <span>Reset Filters (Show All)</span>
+                </button>
+                {!includeDemo && banks.some(b => b.source_type === 'demo') && (
+                  <button
+                    onClick={() => setIncludeDemo(true)}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-300 text-xs font-bold hover:bg-amber-500/20 transition-all cursor-pointer"
+                  >
+                    <span>Include Demo Data</span>
+                  </button>
+                )}
+              </div>
             </div>
           )}
 
           {/* Success / Data State */}
-          {!isLoading && !error && banks.length > 0 && (
+          {!isLoading && !error && visibleBanks.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              {banks.map(bank => {
+              {visibleBanks.map(bank => {
                 const activeReport =
                   selectedGroup !== 'All'
                     ? bank.stock_reports.find(r => r.blood_group === selectedGroup) || bank.stock_reports[0]
@@ -644,7 +695,7 @@ export default function App() {
                       <div className="flex items-center justify-between text-xs py-1.5 px-3 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-main)]">
                         <span className="text-[var(--text-secondary)] font-medium">Blood Component:</span>
                         <span className="font-bold text-[var(--text-primary)]">
-                          {activeReport?.blood_component || 'Unspecified'}
+                          {activeReport?.blood_component || (isExternal ? 'Whole Blood (Queried Feed)' : 'Unspecified')}
                         </span>
                       </div>
 
@@ -655,46 +706,64 @@ export default function App() {
                             Reported Quantity:
                           </span>
                           <span className="text-sm font-bold text-[var(--text-primary)] block">
-                            {activeReport ? `${activeReport.units_reported} units` : 'No data'}{' '}
-                            {isExternal ? (
-                              <span className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold">
-                                (Source-Reported)
-                              </span>
+                            {activeReport ? (
+                              <>
+                                {activeReport.units_reported} units{' '}
+                                {isExternal ? (
+                                  <span className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold">
+                                    (Source-Reported)
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold">
+                                    (Demo Snapshot)
+                                  </span>
+                                )}
+                              </>
                             ) : (
-                              <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold">
-                                (Demo Snapshot)
-                              </span>
+                              <>
+                                <span className="text-[var(--text-secondary)] font-semibold">No stock reported</span>{' '}
+                                <span className="text-[10px] text-[var(--text-secondary)] font-normal">
+                                  (Feed Unstocked)
+                                </span>
+                              </>
                             )}
                           </span>
                           <span className="text-[10px] text-[var(--text-secondary)] block mt-0.5">
-                            {isExternal
-                              ? 'Unverified • Availability not guaranteed'
-                              : 'Not a physical guarantee'}
+                            {activeReport
+                              ? isExternal
+                                ? 'Unverified • Availability not guaranteed'
+                                : 'Not a physical guarantee'
+                              : 'No stock reported in source feed • Not confirmed out of stock'}
                           </span>
                         </div>
                         <div>
-                          <span className="text-[11px] font-semibold text-[var(--text-secondary)] block uppercase tracking-wider">
-                            {freshness.primaryLabel}:
-                          </span>
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-semibold text-[var(--text-secondary)] block uppercase tracking-wider">
+                              {freshness.primaryLabel}:
+                            </span>
+                            {freshness.isStale && (
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30">
+                                Stale (&gt;24h)
+                              </span>
+                            )}
+                          </div>
                           {freshness.isLiveBadge ? (
                             <div className="mt-0.5">
-                              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold text-xs border border-emerald-500/20">
-                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-700 dark:text-blue-300 font-bold text-xs border border-blue-500/20">
+                                <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
                                 {freshness.primaryDisplay}
                               </span>
-                              {freshness.secondaryNote && (
-                                <span className="text-[10px] text-[var(--text-secondary)] block mt-0.5 leading-tight">
-                                  {freshness.secondaryNote}
-                                </span>
-                              )}
+                              <span className="text-[10px] text-[var(--text-secondary)] block mt-0.5 leading-tight">
+                                Portal live indicator (unverified) • Not a physical stock guarantee
+                              </span>
                             </div>
-                          ) : (
+                          ) : activeReport ? (
                             <div>
                               <span
                                 className="text-xs font-semibold text-[var(--text-primary)] flex items-center gap-1.5 mt-0.5"
                                 title={freshness.utcDisplay ? `UTC: ${freshness.utcDisplay}` : undefined}
                               >
-                                <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                <Clock className={`w-3.5 h-3.5 shrink-0 ${freshness.isStale ? 'text-amber-500' : 'text-slate-400'}`} />
                                 <span className="truncate">{freshness.primaryDisplay}</span>
                               </span>
                               {freshness.utcDisplay && (
@@ -708,6 +777,16 @@ export default function App() {
                                 </span>
                               )}
                             </div>
+                          ) : (
+                            <div>
+                              <span className="text-xs text-[var(--text-secondary)] flex items-center gap-1.5 mt-0.5 font-medium">
+                                <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                <span>No stock observations</span>
+                              </span>
+                              <span className="text-[10px] text-[var(--text-secondary)] block mt-0.5 leading-tight">
+                                Source feed did not report positive units for this query.
+                              </span>
+                            </div>
                           )}
                         </div>
                       </div>
@@ -719,14 +798,14 @@ export default function App() {
                         className="text-[11px] font-medium text-[var(--text-secondary)] bg-[var(--bg-elevated)] px-2.5 py-1 rounded-lg border border-[var(--border-main)] truncate max-w-[200px]"
                         title={activeReport?.source_name || bank.source_name}
                       >
-                        {activeReport?.source_name || bank.source_name || (isExternal ? 'e-RaktKosh' : 'Synthetic demo dataset')}
+                        {activeReport?.source_name || bank.source_name || (isExternal ? 'e-RaktKosh (MoHFW)' : 'Synthetic demo dataset')}
                       </span>
-                      {activeReport?.verification_status === 'demo' ? (
+                      {activeReport?.verification_status === 'demo' || (!isExternal && !activeReport) ? (
                         <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 px-2.5 py-1 rounded-lg flex items-center gap-1 shrink-0">
                           <AlertTriangle className="w-3 h-3" />
                           Simulated Demo Data (Unverified)
                         </span>
-                      ) : activeReport?.verification_status === 'reported_unverified' ? (
+                      ) : isExternal ? (
                         <span className="text-[11px] font-semibold text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/50 px-2.5 py-1 rounded-lg flex items-center gap-1 shrink-0">
                           <ShieldCheck className="w-3 h-3" />
                           Source-Reported Snapshot (Unverified)
