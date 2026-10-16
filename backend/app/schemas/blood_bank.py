@@ -7,6 +7,27 @@ DEFAULT_DATA_NOTICE: Final[str] = (
     "hospital inventory or guaranteed physical blood availability."
 )
 
+MIXED_DATA_NOTICE: Final[str] = (
+    "Records include both synthetic demonstration data and official source-reported snapshots "
+    "from e-RaktKosh (MoHFW). External inventory is source-reported, may be stale, and does not "
+    "guarantee real-time physical blood availability. Always verify directly with the blood bank."
+)
+
+EXTERNAL_ONLY_DATA_NOTICE: Final[str] = (
+    "Records include official source-reported blood stock snapshots from e-RaktKosh (MoHFW). "
+    "External inventory is source-reported, may be stale, and does not represent an absolute "
+    "guarantee of physical blood availability. Always verify directly with the blood bank."
+)
+
+
+def build_data_notice(has_demo: bool, has_external: bool) -> str:
+    """Construct an accurate data notice describing the returned records."""
+    if has_demo and has_external:
+        return MIXED_DATA_NOTICE
+    if has_external:
+        return EXTERNAL_ONLY_DATA_NOTICE
+    return DEFAULT_DATA_NOTICE
+
 
 class StockReportRead(BaseModel):
     """Schema representing reported blood group stock inventory for a blood bank."""
@@ -136,6 +157,8 @@ class BloodBankRead(BaseModel):
 class BloodBankListResponse(BaseModel):
     """Envelope schema for blood bank discovery endpoint response."""
 
+    model_config = ConfigDict(from_attributes=True)
+
     items: list[BloodBankRead] = Field(
         description="List of matching blood banks and their snapshot stock reports",
     )
@@ -145,6 +168,28 @@ class BloodBankListResponse(BaseModel):
     )
     data_notice: str = Field(
         default=DEFAULT_DATA_NOTICE,
-        description="Notice indicating data authenticity, synthetic origin, and non-guarantee of physical stock",
+        description="Notice indicating data authenticity, synthetic or external origin, and non-guarantee of physical stock",
         examples=[DEFAULT_DATA_NOTICE],
     )
+    data_timestamp: Optional[datetime] = Field(
+        default=None,
+        description="ISO 8601 UTC timestamp representing the response data snapshot timestamp",
+        examples=["2026-10-16T00:00:00Z"],
+    )
+
+    @field_validator("data_timestamp", mode="after")
+    @classmethod
+    def ensure_utc(cls, v: Optional[datetime]) -> Optional[datetime]:
+        """Attach explicit UTC timezone if naive or convert to UTC."""
+        if v is None:
+            return None
+        if v.tzinfo is None:
+            return v.replace(tzinfo=timezone.utc)
+        return v.astimezone(timezone.utc)
+
+    @field_serializer("data_timestamp")
+    def serialize_optional_utc_datetime(self, dt: Optional[datetime], _info: Any) -> Optional[str]:
+        """Serialize optional datetime to UTC ISO 8601 string with 'Z' suffix."""
+        if dt is None:
+            return None
+        return dt.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")

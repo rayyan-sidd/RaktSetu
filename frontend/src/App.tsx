@@ -22,6 +22,7 @@ import {
 import {
   fetchBloodBanks,
   formatTimestamp,
+  getReportFreshnessInfo,
   type BloodBank,
 } from './services/api'
 
@@ -80,9 +81,13 @@ export default function App() {
   const [banks, setBanks] = useState<BloodBank[]>([])
   const [bankCount, setBankCount] = useState<number>(0)
   const [dataNotice, setDataNotice] = useState<string>('')
+  const [dataTimestamp, setDataTimestamp] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
   const [retryTrigger, setRetryTrigger] = useState<number>(0)
+
+  const hasDemo = banks.some(b => b.source_type === 'demo')
+  const hasExternal = banks.some(b => b.source_type === 'external_source')
 
   // Fetch actual discovery records from backend API
   useEffect(() => {
@@ -99,6 +104,7 @@ export default function App() {
         setBanks(data.items)
         setBankCount(data.count)
         setDataNotice(data.data_notice)
+        setDataTimestamp(data.data_timestamp || null)
         setIsLoading(false)
       })
       .catch(err => {
@@ -131,7 +137,7 @@ export default function App() {
       <div className="bg-[#142433] text-stone-300 text-[11px] py-1 px-4 text-center font-medium tracking-wide flex items-center justify-center gap-2 border-b border-[#23394E]">
         <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
         <span>
-          <strong>Prototype Notice:</strong> Demonstrating planned blood discovery and coordination. All stock data is simulated; live external integrations are not connected.
+          <strong>Prototype Notice:</strong> Demonstrating blood discovery and coordination architecture. Stock inventory is source-reported or simulated demo data, and does not guarantee real-time physical blood availability.
         </span>
       </div>
 
@@ -458,7 +464,13 @@ export default function App() {
 
             <div className="text-xs text-[var(--text-secondary)] flex items-center gap-1.5 font-medium">
               <Database className="w-3.5 h-3.5 text-amber-500" />
-              <span>All records below are synthetic demo data • External APIs not connected</span>
+              <span>
+                {hasExternal && hasDemo
+                  ? 'Mixed records: Synthetic demo data and official e-RaktKosh snapshots'
+                  : hasExternal
+                  ? 'Official source-reported e-RaktKosh snapshots • Source inventory is unverified'
+                  : 'All records below are synthetic demo data • External APIs not connected'}
+              </span>
             </div>
           </div>
         </div>
@@ -473,17 +485,22 @@ export default function App() {
               </span>
               {!isLoading && !error && (
                 <span className="text-xs font-normal text-[var(--text-secondary)]">
-                  ({bankCount} {bankCount === 1 ? 'facility' : 'facilities'} reported)
+                  ({bankCount} {bankCount === 1 ? 'facility' : 'facilities'} reported
+                  {dataTimestamp ? ` • Snapshot: ${formatTimestamp(dataTimestamp).localDisplay}` : ''})
                 </span>
               )}
             </h3>
             <span className="text-xs text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1.5">
               <AlertTriangle className="w-3.5 h-3.5" />
-              Simulated demonstration records only
+              {hasExternal && hasDemo
+                ? 'Mixed demo & source-reported records'
+                : hasExternal
+                ? 'Official source-reported snapshots (unverified)'
+                : 'Simulated demonstration records only'}
             </span>
           </div>
 
-          {/* Top Synthetic Data Disclaimer Notice from API */}
+          {/* Top Data Disclaimer Notice from API */}
           {dataNotice && (
             <div className="bg-amber-500/10 border border-amber-500/25 rounded-2xl p-3.5 text-xs text-amber-800 dark:text-amber-300 flex items-start sm:items-center gap-2.5">
               <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5 sm:mt-0" />
@@ -576,7 +593,10 @@ export default function App() {
                   selectedGroup !== 'All'
                     ? bank.stock_reports.find(r => r.blood_group === selectedGroup) || bank.stock_reports[0]
                     : bank.stock_reports[0]
-                const timestampInfo = activeReport ? formatTimestamp(activeReport.data_timestamp) : null
+                const freshness = getReportFreshnessInfo(activeReport)
+                const isExternal =
+                  bank.source_type === 'external_source' ||
+                  activeReport?.verification_status === 'reported_unverified'
 
                 return (
                   <div
@@ -585,22 +605,47 @@ export default function App() {
                   >
                     <div className="space-y-3">
                       <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <h4 className="font-extrabold text-base text-[var(--text-primary)] leading-snug">
-                            {bank.name}
-                          </h4>
-                          <p className="text-xs text-[var(--text-secondary)] flex items-center gap-1.5 mt-1 font-medium">
+                        <div className="space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h4 className="font-extrabold text-base text-[var(--text-primary)] leading-snug">
+                              {bank.name}
+                            </h4>
+                            {/* Provenance Pill */}
+                            {isExternal ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60">
+                                e-RaktKosh Feed
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60">
+                                Synthetic Demo
+                              </span>
+                            )}
+                            {bank.category && (
+                              <span className="inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[var(--bg-elevated)] text-[var(--text-secondary)] border border-[var(--border-main)]">
+                                {bank.category}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-[var(--text-secondary)] flex items-center gap-1.5 font-medium">
                             <MapPin className="w-3.5 h-3.5 text-[#B91C35]" />
-                            <span>{bank.locality} • {bank.city}</span>
+                            <span>{bank.locality ? `${bank.locality} • ` : ''}{bank.city}</span>
                           </p>
                         </div>
 
                         {/* Blood Group Pill */}
-                        <div className="text-right">
+                        <div className="text-right shrink-0">
                           <span className="inline-flex items-center justify-center min-w-11 h-11 px-2.5 rounded-xl bg-[#FFF1F2] dark:bg-[#B91C35]/25 text-[#B91C35] font-extrabold text-base border border-[#B91C35]/35 shadow-sm">
                             {selectedGroup !== 'All' ? selectedGroup : `${bank.stock_reports.length} Groups`}
                           </span>
                         </div>
+                      </div>
+
+                      {/* Component Display Pill */}
+                      <div className="flex items-center justify-between text-xs py-1.5 px-3 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-main)]">
+                        <span className="text-[var(--text-secondary)] font-medium">Blood Component:</span>
+                        <span className="font-bold text-[var(--text-primary)]">
+                          {activeReport?.blood_component || 'Unspecified'}
+                        </span>
                       </div>
 
                       {/* Stock & Freshness Data Strip */}
@@ -611,39 +656,87 @@ export default function App() {
                           </span>
                           <span className="text-sm font-bold text-[var(--text-primary)] block">
                             {activeReport ? `${activeReport.units_reported} units` : 'No data'}{' '}
-                            <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold">(Demo Snapshot)</span>
+                            {isExternal ? (
+                              <span className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold">
+                                (Source-Reported)
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold">
+                                (Demo Snapshot)
+                              </span>
+                            )}
                           </span>
                           <span className="text-[10px] text-[var(--text-secondary)] block mt-0.5">
-                            Not a physical guarantee
+                            {isExternal
+                              ? 'Unverified • Availability not guaranteed'
+                              : 'Not a physical guarantee'}
                           </span>
                         </div>
                         <div>
                           <span className="text-[11px] font-semibold text-[var(--text-secondary)] block uppercase tracking-wider">
-                            Snapshot Time:
+                            {freshness.primaryLabel}:
                           </span>
-                          <span
-                            className="text-xs font-semibold text-[var(--text-primary)] flex items-center gap-1.5 mt-0.5"
-                            title={`UTC Provenance: ${timestampInfo?.utcDisplay}`}
-                          >
-                            <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                            <span className="truncate">{timestampInfo ? timestampInfo.localDisplay : 'N/A'}</span>
-                          </span>
-                          <span className="text-[10px] text-[var(--text-secondary)] block mt-0.5 font-mono">
-                            UTC: {timestampInfo?.utcDisplay}
-                          </span>
+                          {freshness.isLiveBadge ? (
+                            <div className="mt-0.5">
+                              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold text-xs border border-emerald-500/20">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                {freshness.primaryDisplay}
+                              </span>
+                              {freshness.secondaryNote && (
+                                <span className="text-[10px] text-[var(--text-secondary)] block mt-0.5 leading-tight">
+                                  {freshness.secondaryNote}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <div>
+                              <span
+                                className="text-xs font-semibold text-[var(--text-primary)] flex items-center gap-1.5 mt-0.5"
+                                title={freshness.utcDisplay ? `UTC: ${freshness.utcDisplay}` : undefined}
+                              >
+                                <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                <span className="truncate">{freshness.primaryDisplay}</span>
+                              </span>
+                              {freshness.utcDisplay && (
+                                <span className="text-[10px] text-[var(--text-secondary)] block mt-0.5 font-mono">
+                                  UTC: {freshness.utcDisplay}
+                                </span>
+                              )}
+                              {freshness.secondaryNote && (
+                                <span className="text-[10px] text-[var(--text-secondary)] block mt-0.5 leading-tight">
+                                  {freshness.secondaryNote}
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
 
                     {/* Footer Tag Strip */}
-                    <div className="mt-5 pt-3.5 border-t border-[var(--border-main)] flex items-center justify-between text-xs gap-2">
-                      <span className="text-[11px] font-medium text-[var(--text-secondary)] bg-[var(--bg-elevated)] px-2.5 py-1 rounded-lg border border-[var(--border-main)] truncate max-w-[200px]">
-                        {activeReport ? activeReport.source_name : 'Synthetic demo dataset'}
+                    <div className="mt-5 pt-3.5 border-t border-[var(--border-main)] flex flex-wrap items-center justify-between text-xs gap-2">
+                      <span
+                        className="text-[11px] font-medium text-[var(--text-secondary)] bg-[var(--bg-elevated)] px-2.5 py-1 rounded-lg border border-[var(--border-main)] truncate max-w-[200px]"
+                        title={activeReport?.source_name || bank.source_name}
+                      >
+                        {activeReport?.source_name || bank.source_name || (isExternal ? 'e-RaktKosh' : 'Synthetic demo dataset')}
                       </span>
-                      <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 px-2.5 py-1 rounded-lg flex items-center gap-1 shrink-0">
-                        <AlertTriangle className="w-3 h-3" />
-                        Simulated Demo Data (Unverified)
-                      </span>
+                      {activeReport?.verification_status === 'demo' ? (
+                        <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 px-2.5 py-1 rounded-lg flex items-center gap-1 shrink-0">
+                          <AlertTriangle className="w-3 h-3" />
+                          Simulated Demo Data (Unverified)
+                        </span>
+                      ) : activeReport?.verification_status === 'reported_unverified' ? (
+                        <span className="text-[11px] font-semibold text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/50 px-2.5 py-1 rounded-lg flex items-center gap-1 shrink-0">
+                          <ShieldCheck className="w-3 h-3" />
+                          Source-Reported Snapshot (Unverified)
+                        </span>
+                      ) : (
+                        <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/50 px-2.5 py-1 rounded-lg flex items-center gap-1 shrink-0">
+                          <AlertTriangle className="w-3 h-3" />
+                          {activeReport?.verification_status || 'Unverified'}
+                        </span>
+                      )}
                     </div>
                   </div>
                 )

@@ -5,7 +5,9 @@ import {
   fetchBloodBanks,
   formatTimestamp,
   getApiBaseUrl,
+  getReportFreshnessInfo,
   type BloodBankListResponse,
+  type StockReport,
 } from '../src/services/api.ts'
 
 describe('Discovery API Service', () => {
@@ -177,5 +179,179 @@ describe('Discovery API Service', () => {
     } finally {
       globalThis.fetch = originalFetch
     }
+  })
+
+  describe('Report Freshness and Provenance Handling', () => {
+    it('correctly handles null or missing stock report', () => {
+      const freshness = getReportFreshnessInfo(null)
+      assert.equal(freshness.type, 'retrieval_only')
+      assert.equal(freshness.primaryDisplay, 'No data')
+      assert.equal(freshness.isLiveBadge, false)
+      assert.equal(freshness.isDemo, false)
+    })
+
+    it('identifies synthetic demo snapshots and displays simulation disclaimer', () => {
+      const demoReport: StockReport = {
+        id: 1,
+        blood_bank_id: 1,
+        blood_group: 'O+',
+        blood_component: 'Unspecified',
+        units_reported: 12,
+        source_name: 'Synthetic demo dataset',
+        data_timestamp: '2026-10-15T12:00:00Z',
+        verification_status: 'demo',
+      }
+
+      const freshness = getReportFreshnessInfo(demoReport)
+      assert.equal(freshness.type, 'demo_snapshot')
+      assert.equal(freshness.isDemo, true)
+      assert.equal(freshness.isLiveBadge, false)
+      assert.equal(freshness.primaryLabel, 'Snapshot Time')
+      assert.ok(freshness.secondaryNote?.includes('Simulated demonstration timestamp'))
+      assert.ok(freshness.utcDisplay?.includes('2026-10-15T12:00:00'))
+    })
+
+    it('identifies live stock badge indicators without claiming exact time or physical guarantee', () => {
+      const liveBadgeReport: StockReport = {
+        id: 2,
+        blood_bank_id: 2,
+        blood_group: 'A+',
+        blood_component: 'Whole Blood',
+        units_reported: 8,
+        source_name: 'e-RaktKosh',
+        verification_status: 'reported_unverified',
+        freshness_indicator: 'live_stock_badge',
+        source_reported_timestamp: null,
+        retrieval_timestamp: '2026-10-16T06:00:00Z',
+        data_timestamp: '2026-10-16T06:00:00Z',
+      }
+
+      const freshness = getReportFreshnessInfo(liveBadgeReport)
+      assert.equal(freshness.type, 'live_badge')
+      assert.equal(freshness.isLiveBadge, true)
+      assert.equal(freshness.isDemo, false)
+      assert.equal(freshness.primaryLabel, 'Portal Indicator')
+      assert.equal(freshness.primaryDisplay, 'Live Stock Badge')
+      // Must not claim physical guarantee and must state portal indicator
+      assert.ok(freshness.secondaryNote?.includes('not a physical stock guarantee'))
+      assert.ok(freshness.secondaryNote?.includes('Retrieved by RaktSetu'))
+    })
+
+    it('distinguishes source-reported hospital timestamp from RaktSetu retrieval time', () => {
+      const sourceReported: StockReport = {
+        id: 3,
+        blood_bank_id: 2,
+        blood_group: 'B+',
+        blood_component: 'Packed Red Blood Cells',
+        units_reported: 15,
+        source_name: 'e-RaktKosh',
+        verification_status: 'reported_unverified',
+        source_reported_timestamp: '2026-10-16T05:30:00Z',
+        retrieval_timestamp: '2026-10-16T06:00:00Z',
+        data_timestamp: '2026-10-16T06:00:00Z',
+      }
+
+      const freshness = getReportFreshnessInfo(sourceReported)
+      assert.equal(freshness.type, 'source_timestamp')
+      assert.equal(freshness.isLiveBadge, false)
+      assert.equal(freshness.primaryLabel, 'Hospital Reported')
+      assert.ok(freshness.utcDisplay?.includes('2026-10-16T05:30:00'))
+      // Retrieval time is mentioned separately as RaktSetu retrieval, not hospital update
+      assert.ok(freshness.secondaryNote?.includes('Retrieved by RaktSetu'))
+    })
+
+    it('falls back to retrieval-only when source provides neither source timestamp nor live badge', () => {
+      const fallbackReport: StockReport = {
+        id: 4,
+        blood_bank_id: 3,
+        blood_group: 'AB-',
+        blood_component: 'Platelets',
+        units_reported: 4,
+        source_name: 'e-RaktKosh',
+        verification_status: 'reported_unverified',
+        retrieval_timestamp: '2026-10-16T06:10:00Z',
+        data_timestamp: '2026-10-16T06:10:00Z',
+      }
+
+      const freshness = getReportFreshnessInfo(fallbackReport)
+      assert.equal(freshness.type, 'retrieval_only')
+      assert.equal(freshness.primaryLabel, 'Retrieval Time')
+      assert.ok(freshness.secondaryNote?.includes('did not report an explicit hospital update timestamp'))
+    })
+  })
+
+  describe('Mixed Sources and Component Contract', () => {
+    it('validates BloodBankListResponse envelope with data_timestamp and mixed records', () => {
+      const mixedResponse: BloodBankListResponse = {
+        items: [
+          {
+            id: 1,
+            name: 'Demo Central Transfusion Facility',
+            city: 'Delhi',
+            locality: 'Central Delhi',
+            source_type: 'demo',
+            source_name: 'Synthetic demo dataset',
+            stock_reports: [
+              {
+                id: 101,
+                blood_bank_id: 1,
+                blood_group: 'O+',
+                blood_component: 'Unspecified',
+                units_reported: 20,
+                source_name: 'Synthetic demo dataset',
+                verification_status: 'demo',
+                data_timestamp: '2026-10-15T12:00:00Z',
+              },
+            ],
+          },
+          {
+            id: 2,
+            name: 'AIIMS Blood Centre',
+            city: 'Delhi',
+            locality: 'Ansari Nagar',
+            source_type: 'external_source',
+            source_name: 'e-RaktKosh',
+            source_facility_id: 'eraktkosh:delhi:aiims',
+            category: 'Government',
+            facility_type: 'Hospital',
+            stock_reports: [
+              {
+                id: 201,
+                blood_bank_id: 2,
+                blood_group: 'O+',
+                blood_component: 'Packed Red Blood Cells',
+                units_reported: 45,
+                source_name: 'e-RaktKosh',
+                verification_status: 'reported_unverified',
+                source_reported_timestamp: '2026-10-16T05:00:00Z',
+                retrieval_timestamp: '2026-10-16T06:00:00Z',
+                data_timestamp: '2026-10-16T06:00:00Z',
+              },
+            ],
+          },
+        ],
+        count: 2,
+        data_notice:
+          'Records include both synthetic demonstration data and official source-reported snapshots from e-RaktKosh (MoHFW). External inventory is source-reported, may be stale, and does not guarantee real-time physical blood availability. Always verify directly with the blood bank.',
+        data_timestamp: '2026-10-16T06:00:00Z',
+      }
+
+      assert.equal(mixedResponse.count, 2)
+      assert.equal(mixedResponse.data_timestamp, '2026-10-16T06:00:00Z')
+      assert.ok(mixedResponse.data_notice.includes('synthetic demonstration data'))
+      assert.ok(mixedResponse.data_notice.includes('e-RaktKosh'))
+
+      // Legacy demo record keeps Unspecified
+      const demoBank = mixedResponse.items[0]
+      assert.equal(demoBank.source_type, 'demo')
+      assert.equal(demoBank.stock_reports[0].blood_component, 'Unspecified')
+      assert.notEqual(demoBank.stock_reports[0].blood_component, 'Whole Blood')
+
+      // External record has concrete component and reported_unverified
+      const extBank = mixedResponse.items[1]
+      assert.equal(extBank.source_type, 'external_source')
+      assert.equal(extBank.stock_reports[0].blood_component, 'Packed Red Blood Cells')
+      assert.equal(extBank.stock_reports[0].verification_status, 'reported_unverified')
+    })
   })
 })

@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -6,7 +7,12 @@ from sqlalchemy.orm import Session, selectinload
 
 from backend.app.core.database import get_db
 from backend.app.models.blood_bank import SUPPORTED_BLOOD_GROUPS, SUPPORTED_CITIES, BloodBank, StockReport
-from backend.app.schemas.blood_bank import BloodBankListResponse, BloodBankRead, StockReportRead
+from backend.app.schemas.blood_bank import (
+    BloodBankListResponse,
+    BloodBankRead,
+    StockReportRead,
+    build_data_notice,
+)
 
 router = APIRouter(prefix="/api", tags=["blood-banks"])
 
@@ -55,7 +61,7 @@ def _validate_blood_group(blood_group: Optional[str]) -> Optional[str]:
     description=(
         "Query reported blood banks and their stock reports across Delhi and Lucknow. "
         "Allows optional filtering by city and blood group. "
-        "Returns items, bank count, and an explicit synthetic data disclaimer notice."
+        "Returns items, bank count, and an explicit data provenance disclaimer notice."
     ),
 )
 def get_blood_banks(
@@ -71,7 +77,7 @@ def get_blood_banks(
     ),
     db: Session = Depends(get_db),
 ) -> BloodBankListResponse:
-    """Return matching blood banks, total bank count, and a synthetic data notice."""
+    """Return matching blood banks, total bank count, and an accurate data notice."""
     city_filter = _validate_city(city)
     blood_group_filter = _validate_blood_group(blood_group)
 
@@ -110,7 +116,26 @@ def get_blood_banks(
             )
         )
 
+    has_demo = any(b.source_type == "demo" for b in items)
+    has_external = any(b.source_type == "external_source" for b in items)
+    notice = build_data_notice(has_demo=has_demo, has_external=has_external)
+
+    latest_ts: Optional[datetime] = None
+    for b in items:
+        for r in b.stock_reports:
+            raw_candidate = r.retrieval_timestamp or r.source_reported_timestamp or r.data_timestamp
+            if raw_candidate:
+                candidate_ts = (
+                    raw_candidate
+                    if raw_candidate.tzinfo is not None
+                    else raw_candidate.replace(tzinfo=timezone.utc)
+                )
+                if latest_ts is None or candidate_ts > latest_ts:
+                    latest_ts = candidate_ts
+
     return BloodBankListResponse(
         items=items,
         count=len(items),
+        data_notice=notice,
+        data_timestamp=latest_ts,
     )

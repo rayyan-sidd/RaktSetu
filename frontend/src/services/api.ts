@@ -30,7 +30,9 @@ export interface BloodBankListResponse {
   items: BloodBank[]
   count: number
   data_notice: string
+  data_timestamp?: string | null
 }
+
 
 /**
  * Resolve the base API URL from Vite environment variables.
@@ -147,5 +149,98 @@ export function formatTimestamp(isoUtcTimestamp: string): FormattedTimestamp {
       utcDisplay: isoUtcTimestamp,
       isoString: isoUtcTimestamp,
     }
+  }
+}
+
+export interface ReportFreshnessInfo {
+  type: 'source_timestamp' | 'live_badge' | 'demo_snapshot' | 'retrieval_only'
+  primaryLabel: string
+  primaryDisplay: string
+  utcDisplay?: string
+  secondaryNote?: string
+  isLiveBadge: boolean
+  isDemo: boolean
+}
+
+/**
+ * Determine freshness and timestamp presentation based on provenance.
+ * Strictly distinguishes source-reported time from RaktSetu retrieval time,
+ * handles live stock badge indicators without claiming exact times or live guarantees,
+ * and maintains demo snapshot distinction.
+ */
+export function getReportFreshnessInfo(report?: StockReport | null): ReportFreshnessInfo {
+  if (!report) {
+    return {
+      type: 'retrieval_only',
+      primaryLabel: 'Timestamp',
+      primaryDisplay: 'No data',
+      isLiveBadge: false,
+      isDemo: false,
+    }
+  }
+
+  // 1. Synthetic demo data
+  if (report.verification_status === 'demo') {
+    const formatted = formatTimestamp(report.data_timestamp)
+    return {
+      type: 'demo_snapshot',
+      primaryLabel: 'Snapshot Time',
+      primaryDisplay: formatted.localDisplay,
+      utcDisplay: formatted.utcDisplay,
+      secondaryNote: 'Simulated demonstration timestamp',
+      isLiveBadge: false,
+      isDemo: true,
+    }
+  }
+
+  // 2. Live stock badge indicator (source indicates live stock without exact timestamp)
+  if (
+    report.freshness_indicator === 'live_stock_badge' ||
+    (!report.source_reported_timestamp && report.freshness_indicator)
+  ) {
+    const retrievalFormatted = report.retrieval_timestamp
+      ? formatTimestamp(report.retrieval_timestamp)
+      : null
+    return {
+      type: 'live_badge',
+      primaryLabel: 'Portal Indicator',
+      primaryDisplay: 'Live Stock Badge',
+      secondaryNote: retrievalFormatted
+        ? `Retrieved by RaktSetu: ${retrievalFormatted.localDisplay} (UTC: ${retrievalFormatted.utcDisplay}). Portal shows live indicator without exact hospital timestamp; not a physical stock guarantee.`
+        : 'Portal shows live indicator without exact hospital timestamp; not a physical stock guarantee.',
+      isLiveBadge: true,
+      isDemo: false,
+    }
+  }
+
+  // 3. Source-reported hospital timestamp is present
+  if (report.source_reported_timestamp) {
+    const srcFormatted = formatTimestamp(report.source_reported_timestamp)
+    const retrievalFormatted = report.retrieval_timestamp
+      ? formatTimestamp(report.retrieval_timestamp)
+      : null
+    return {
+      type: 'source_timestamp',
+      primaryLabel: 'Hospital Reported',
+      primaryDisplay: srcFormatted.localDisplay,
+      utcDisplay: srcFormatted.utcDisplay,
+      secondaryNote: retrievalFormatted
+        ? `Retrieved by RaktSetu: ${retrievalFormatted.localDisplay}`
+        : undefined,
+      isLiveBadge: false,
+      isDemo: false,
+    }
+  }
+
+  // 4. External report with only retrieval or legacy timestamp
+  const fallbackFormatted = formatTimestamp(report.retrieval_timestamp || report.data_timestamp)
+  return {
+    type: 'retrieval_only',
+    primaryLabel: 'Retrieval Time',
+    primaryDisplay: fallbackFormatted.localDisplay,
+    utcDisplay: fallbackFormatted.utcDisplay,
+    secondaryNote: 'Source portal did not report an explicit hospital update timestamp.',
+    isLiveBadge: false,
+    isDemo: false,
   }
 }

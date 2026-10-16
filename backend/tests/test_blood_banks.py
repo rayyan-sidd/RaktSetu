@@ -9,7 +9,12 @@ from sqlalchemy.pool import StaticPool
 from backend.app.core.database import Base, get_db
 from backend.app.main import app
 from backend.app.models.blood_bank import BloodBank, StockReport
-from backend.app.schemas.blood_bank import DEFAULT_DATA_NOTICE
+from backend.app.schemas.blood_bank import (
+    DEFAULT_DATA_NOTICE,
+    EXTERNAL_ONLY_DATA_NOTICE,
+    MIXED_DATA_NOTICE,
+    build_data_notice,
+)
 from backend.app.seed_demo import seed_demo_data
 
 # Use SQLite in-memory database with StaticPool for isolated, reproducible testing
@@ -318,3 +323,179 @@ def test_synthetic_dataset_integrity() -> None:
             assert report["data_timestamp"] == "2026-10-15T12:00:00Z"
             assert isinstance(report["units_reported"], int)
             assert report["units_reported"] >= 0
+
+
+class TestMixedSourceDiscoveryAndDisclaimers:
+    """Tests verifying discovery API behavior with mixed synthetic demo and external data."""
+
+    def test_build_data_notice_contract(self) -> None:
+        """Verify build_data_notice returns appropriate disclaimer for each data source combination."""
+        # Demo only
+        assert build_data_notice(has_demo=True, has_external=False) == DEFAULT_DATA_NOTICE
+        # Mixed
+        assert build_data_notice(has_demo=True, has_external=True) == MIXED_DATA_NOTICE
+        # External only
+        assert build_data_notice(has_demo=False, has_external=True) == EXTERNAL_ONLY_DATA_NOTICE
+        # Neither (defaults to DEFAULT_DATA_NOTICE)
+        assert build_data_notice(has_demo=False, has_external=False) == DEFAULT_DATA_NOTICE
+
+    def test_legacy_demo_records_preserve_unspecified_component_never_relabeled(self) -> None:
+        """Verify that all seeded demo records retain blood_component='Unspecified' and are never relabeled."""
+        response = client.get("/api/blood-banks")
+        assert response.status_code == 200
+        data = response.json()
+
+        for bank in data["items"]:
+            assert bank["source_type"] == "demo"
+            for report in bank["stock_reports"]:
+                assert report["blood_component"] == "Unspecified"
+                assert report["blood_component"] != "Whole Blood"
+                assert report["verification_status"] == "demo"
+
+    def test_mixed_sources_notice_and_timestamp_handling(self) -> None:
+        """Verify that when external facilities are present alongside demo facilities:
+        1. data_notice accurately describes mixed sources.
+        2. data_timestamp reflects the freshest retrieval timestamp.
+        3. External stock reports maintain source provenance and unverified status.
+        4. Retrieval timestamp is distinct from hospital reported timestamp.
+        """
+        source_ts = datetime(2026, 10, 16, 5, 30, tzinfo=timezone.utc)
+        retrieval_ts = datetime(2026, 10, 16, 6, 0, tzinfo=timezone.utc)
+
+        with TestSessionLocal() as session:
+            external_bank = BloodBank(
+                name="AIIMS Blood Centre",
+                city="Delhi",
+                locality="Ansari Nagar",
+                source_type="external_source",
+                source_name="e-RaktKosh",
+                source_facility_id="eraktkosh:delhi:aiims_blood_centre",
+                category="Government",
+                facility_type="Hospital",
+            )
+            session.add(external_bank)
+            session.flush()
+
+            external_report = StockReport(
+                blood_bank_id=external_bank.id,
+                blood_group="O+",
+                blood_component="Packed Red Blood Cells",
+                units_reported=24,
+                source_name="e-RaktKosh",
+                verification_status="reported_unverified",
+                source_reported_timestamp=source_ts,
+                retrieval_timestamp=retrieval_ts,
+                data_timestamp=retrieval_ts,
+            )
+            session.add(external_report)
+            session.commit()
+
+        response = client.get("/api/blood-banks?city=Delhi")
+        assert response.status_code == 200
+        data = response.json()
+
+        # Envelope check
+        assert data["data_notice"] == MIXED_DATA_NOTICE
+        assert "e-RaktKosh" in data["data_notice"]
+        assert "does not guarantee real-time physical blood availability" in data["data_notice"]
+        assert data["data_timestamp"] == "2026-10-16T06:00:00Z"
+
+        # Check external item
+        aiims = next(b for b in data["items"] if b["name"] == "AIIMS Blood Centre")
+        assert aiims["source_type"] == "external_source"
+        assert aiims["source_facility_id"] == "eraktkosh:delhi:aiims_blood_centre"
+        assert aiims["category"] == "Government"
+
+        assert len(aiims["stock_reports"]) == 1
+        rep = aiims["stock_reports"][0]
+        assert rep["blood_group"] == "O+"
+        assert rep["blood_component"] == "Packed Red Blood Cells"
+        assert rep["verification_status"] == "reported_unverified"
+        assert rep["source_reported_timestamp"] == "2026-10-16T05:30:00Z"
+        assert rep["retrieval_timestamp"] == "2026-10-16T06:00:00Z"
+        # Source reported is distinct from retrieval
+        assert rep["source_reported_timestamp"] != rep["retrieval_timestamp"]
+
+    def test_external_only_notice_when_no_demo_data_matches(self) -> None:
+        """Verify EXTERNAL_ONLY_DATA_NOTICE is used when all returned records are external sources."""
+        retrieval_ts = datetime(2026, 10, 16, 6, 15, tzinfo=timezone.utc)
+
+        with TestSessionLocal() as session:
+            # Remove all demo records for this test
+            session.query(StockReport).delete()
+            session.query(BloodBank).delete()
+
+            external_bank = BloodBank(
+                name="SGPGI Blood Bank",
+                city="Lucknow",
+                locality="Raebareli Road",
+                source_type="external_source",
+                source_name="e-RaktKosh",
+                source_facility_id="eraktkosh:lucknow:sgpgi",
+            )
+            session.add(external_bank)
+            session.flush()
+
+            report = StockReport(
+                blood_bank_id=external_bank.id,
+                blood_group="AB+",
+                blood_component="Whole Blood",
+                units_reported=10,
+                source_name="e-RaktKosh",
+                verification_status="reported_unverified",
+                retrieval_timestamp=retrieval_ts,
+                data_timestamp=retrieval_ts,
+            )
+            session.add(report)
+            session.commit()
+
+        response = client.get("/api/blood-banks")
+        assert response.status_code == 200
+        data = response.json()
+
+        assert data["count"] == 1
+        assert data["data_notice"] == EXTERNAL_ONLY_DATA_NOTICE
+        assert "synthetic" not in data["data_notice"].lower()
+        assert "e-RaktKosh" in data["data_notice"]
+        assert data["data_timestamp"] == "2026-10-16T06:15:00Z"
+
+    def test_live_badge_freshness_in_api(self) -> None:
+        """Verify portal live stock badge freshness indicator is serialized without inventing timestamps."""
+        retrieval_ts = datetime(2026, 10, 16, 6, 20, tzinfo=timezone.utc)
+
+        with TestSessionLocal() as session:
+            external_bank = BloodBank(
+                name="Ram Manohar Lohia Hospital Blood Centre",
+                city="Delhi",
+                locality="Connaught Place",
+                source_type="external_source",
+                source_name="e-RaktKosh",
+                source_facility_id="eraktkosh:delhi:rml_hospital",
+            )
+            session.add(external_bank)
+            session.flush()
+
+            report = StockReport(
+                blood_bank_id=external_bank.id,
+                blood_group="B+",
+                blood_component="Whole Blood",
+                units_reported=15,
+                source_name="e-RaktKosh",
+                verification_status="reported_unverified",
+                freshness_indicator="live_stock_badge",
+                source_reported_timestamp=None,  # Portal provides live stock badge, not exact datetime
+                retrieval_timestamp=retrieval_ts,
+                data_timestamp=retrieval_ts,
+            )
+            session.add(report)
+            session.commit()
+
+        response = client.get("/api/blood-banks?blood_group=B%2B")
+        assert response.status_code == 200
+        data = response.json()
+
+        rml = next(b for b in data["items"] if b["name"] == "Ram Manohar Lohia Hospital Blood Centre")
+        report = rml["stock_reports"][0]
+        assert report["freshness_indicator"] == "live_stock_badge"
+        assert report["source_reported_timestamp"] is None
+        assert report["retrieval_timestamp"] == "2026-10-16T06:20:00Z"
