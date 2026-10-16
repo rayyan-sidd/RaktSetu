@@ -1,0 +1,17 @@
+# RaktSetu Database Migrations
+
+This directory contains versioned Alembic database migrations for RaktSetu.
+
+## Migration Revisions
+
+1. `0001_baseline_schema`:
+   - Baseline schema matching the original unversioned RaktSetu database created via `Base.metadata.create_all()`.
+   - Defines `blood_banks` (`id`, `name`, `city`, `locality`) and `stock_reports` (`id`, `blood_bank_id`, `blood_group`, `units_reported`, `source_name`, `data_timestamp`, `verification_status`).
+   - Legacy unique constraint: `UNIQUE(blood_bank_id, blood_group)`.
+
+2. `0002_component_aware_provenance`:
+   - Extends `blood_banks` with `source_type` (`demo` vs `external_source`), `source_name`, `source_facility_id`, `raw_address`, `category`, and `facility_type`.
+   - Adds unique constraint `uq_blood_bank_source_facility` on `(source_name, source_facility_id)`.
+   - Extends `stock_reports` with non-null canonical `blood_component` (`Unspecified` for legacy demo rows), `source_reported_timestamp` (null for legacy rows), non-null `retrieval_timestamp` (`2026-10-16 00:00:00 UTC` migration-time formalization), and `freshness_indicator`.
+   - Replaces legacy constraint with `uq_blood_bank_group_component` on `(blood_bank_id, blood_group, blood_component)`.
+   - Preserves legacy `data_timestamp` field for backward compatibility.

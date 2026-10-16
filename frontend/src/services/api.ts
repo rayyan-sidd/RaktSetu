@@ -2,9 +2,13 @@ export interface StockReport {
   id: number
   blood_bank_id: number
   blood_group: string
+  blood_component?: string
   units_reported: number
   source_name: string
   data_timestamp: string
+  source_reported_timestamp?: string | null
+  retrieval_timestamp?: string | null
+  freshness_indicator?: string | null
   verification_status: string
 }
 
@@ -13,6 +17,12 @@ export interface BloodBank {
   name: string
   city: string
   locality: string
+  source_type?: string
+  source_name?: string
+  source_facility_id?: string | null
+  raw_address?: string | null
+  category?: string | null
+  facility_type?: string | null
   stock_reports: StockReport[]
 }
 

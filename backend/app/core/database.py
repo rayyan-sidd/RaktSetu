@@ -50,5 +50,7 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def init_db() -> None:
-    """Create all registered database tables if they do not already exist."""
-    Base.metadata.create_all(bind=engine)
+    """Run guarded database migrations to ensure the database schema is at head."""
+    from backend.app.core.migration import run_database_migrations
+
+    run_database_migrations(engine=engine)

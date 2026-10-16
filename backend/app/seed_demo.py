@@ -39,9 +39,13 @@ def seed_demo_data(db: Session, seed_file_path: Optional[Path] = None) -> tuple[
             name=bank_item["name"],
             city=bank_item["city"],
             locality=bank_item["locality"],
+            source_type="demo",
+            source_name="Synthetic demo dataset",
         )
         db.add(bank)
-        db.flush()  # Populate bank.id for stock reports
+        db.flush()  # Populate bank.id for stock reports and explicit demo ID
+        bank.source_facility_id = f"demo:{bank.id}"
+        db.flush()
 
         for report_item in bank_item.get("stock_reports", []):
             raw_ts = report_item["data_timestamp"]
@@ -51,9 +55,13 @@ def seed_demo_data(db: Session, seed_file_path: Optional[Path] = None) -> tuple[
             stock_report = StockReport(
                 blood_bank_id=bank.id,
                 blood_group=report_item["blood_group"],
+                blood_component=report_item.get("blood_component", "Unspecified"),
                 units_reported=report_item["units_reported"],
                 source_name=report_item["source_name"],
                 data_timestamp=dt,
+                source_reported_timestamp=None,  # Legacy demo rows have no external source timestamp
+                retrieval_timestamp=dt,
+                freshness_indicator=None,
                 verification_status=report_item["verification_status"],
             )
             db.add(stock_report)

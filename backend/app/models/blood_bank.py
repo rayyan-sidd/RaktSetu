@@ -43,6 +43,18 @@ class BloodBank(Base):
     city: Mapped[str] = mapped_column(String(50), nullable=False)
     locality: Mapped[str] = mapped_column(String(255), nullable=False)
 
+    # Provenance and source identification fields
+    source_type: Mapped[str] = mapped_column(String(50), nullable=False, default="demo")
+    source_name: Mapped[str] = mapped_column(
+        String(255), nullable=False, default="Synthetic demo dataset"
+    )
+    source_facility_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+
+    # Extended facility metadata
+    raw_address: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    category: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    facility_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+
     stock_reports: Mapped[list["StockReport"]] = relationship(
         "StockReport",
         back_populates="blood_bank",
@@ -55,10 +67,18 @@ class BloodBank(Base):
             f"city IN ({', '.join(repr(c) for c in SUPPORTED_CITIES)})",
             name="ck_blood_bank_city",
         ),
+        UniqueConstraint(
+            "source_name",
+            "source_facility_id",
+            name="uq_blood_bank_source_facility",
+        ),
     )
 
     def __repr__(self) -> str:
-        return f"<BloodBank(id={self.id}, name={self.name!r}, city={self.city!r}, locality={self.locality!r})>"
+        return (
+            f"<BloodBank(id={self.id}, name={self.name!r}, city={self.city!r}, "
+            f"source_type={self.source_type!r}, source_facility_id={self.source_facility_id!r})>"
+        )
 
 
 class StockReport(Base):
@@ -74,8 +94,27 @@ class StockReport(Base):
         index=True,
     )
     blood_group: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
+
+    # Canonical non-null blood component field ('Unspecified' for legacy demo data)
+    blood_component: Mapped[str] = mapped_column(
+        String(100), nullable=False, default="Unspecified", index=True
+    )
+
     units_reported: Mapped[int] = mapped_column(Integer, nullable=False)
     source_name: Mapped[str] = mapped_column(String(255), nullable=False)
+
+    # Provenance and timestamp fields
+    source_reported_timestamp: Mapped[Optional[datetime]] = mapped_column(
+        UTCDateTime, nullable=True, default=None
+    )
+    retrieval_timestamp: Mapped[datetime] = mapped_column(
+        UTCDateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
+    )
+    freshness_indicator: Mapped[Optional[str]] = mapped_column(
+        String(50), nullable=True, default=None
+    )
+
+    # Legacy backward-compatible timestamp
     data_timestamp: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
     verification_status: Mapped[str] = mapped_column(String(50), nullable=False)
 
@@ -88,7 +127,8 @@ class StockReport(Base):
         UniqueConstraint(
             "blood_bank_id",
             "blood_group",
-            name="uq_blood_bank_blood_group",
+            "blood_component",
+            name="uq_blood_bank_group_component",
         ),
         CheckConstraint(
             f"blood_group IN ({', '.join(repr(bg) for bg in SUPPORTED_BLOOD_GROUPS)})",
@@ -99,5 +139,5 @@ class StockReport(Base):
     def __repr__(self) -> str:
         return (
             f"<StockReport(id={self.id}, bank_id={self.blood_bank_id}, group={self.blood_group!r}, "
-            f"units={self.units_reported}, source={self.source_name!r})>"
+            f"component={self.blood_component!r}, units={self.units_reported}, source={self.source_name!r})>"
         )
