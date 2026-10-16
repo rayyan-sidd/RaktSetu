@@ -27,15 +27,28 @@ RaktSetu is an open-source, AI-powered blood discovery and voluntary donor coord
 
 ---
 
-## Planned Features
+## Current Implementation & Core Features
 
-- **Blood Bank Discovery**: Proximity-based search for licensed blood banks, blood storage centers, and transfusion facilities in Delhi and Lucknow. *(Planned)*
-- **Source-Attributed Inventory**: Transparent stock reporting displaying data origins, last-updated timestamps, and clear verification badges. *(Planned)*
-- **Voluntary Donor Coordination**: ABO/Rh-compatible matching for urgent requests connecting to opted-in voluntary donors. *(Planned)*
-- **Privacy-Preserving Contact Relay**: Consent-driven alert dispatch via Telegram Bot API without exposing donor phone numbers. *(Planned)*
-- **Human Moderation Queue**: Administrative review checkpoint for high-urgency or sensitive blood requests before donor notification broadcasts. *(Planned)*
-- **Intelligent Triage Agent**: Reusable open-source AI assistant utilizing Gemma 4 (with deterministic rule-based fallbacks) for structured emergency query parsing. *(Planned)*
-- **Modular Data Connectors**: Configurable TinyFish data retrieval worker designed to operate strictly within prototype credit limits ($35 budget cap). *(Planned)*
+### ✅ Implemented
+- **Interactive Blood Bank Discovery Console**: Responsive React 19 + TypeScript interface styled with Tailwind CSS, Lucide icons, and a custom 3D Canvas visual scene. Supports instant filtering by City (`Delhi`, `Lucknow`, `All Cities`) and ABO/Rh Blood Group (`A+`, `A-`, `B+`, `B-`, `AB+`, `AB-`, `O+`, `O-`, `All`).
+- **Real Data by Default**: Discovery results prioritize and display real, source-reported facilities by default. Synthetic demonstration records are excluded from default results.
+- **Controlled Demo Data Toggle**: An "Include demo data" toggle allows users to optionally append demo data when needed. When enabled, real records always precede demo records, and the displayed facility counter synchronizes strictly with the visible list.
+- **Source Attribution & Freshness Intelligence**: Clear visual provenance badges (`e-RaktKosh Feed` vs `Synthetic Demo`), explicit distinction between hospital update time and RaktSetu retrieval time, automated stale record warnings (>24h), and live badge unverified disclaimer notices.
+- **Fail-Safe e-RaktKosh Ingestion Pipeline**: Modular CLI pipeline (`python -m backend.app.ingest_eraktkosh`) featuring:
+  - HTML table extraction and normalization for Ministry of Health and Family Welfare (MoHFW) e-RaktKosh portal responses.
+  - Strict PII/contact stripping and redaction across all phone and address formats.
+  - IST portal timestamp parsing to standardized UTC ISO 8601 strings.
+  - Deterministic composite facility slugging eliminating identity collisions across similarly named hospitals.
+  - Fail-safe transactional reconciliation: omitted facilities never trigger accidental inventory deletion; explicit unavailable observations are strictly scoped; zero-quantity reports are never artificially invented.
+  - Dry-run verification mode by default (`--apply` required for database writes).
+- **Guarded Versioned Schema Migration (v2)**: Component-aware stock tracking (`Whole Blood`, `Packed Red Blood Cells`, etc.), source tracking, isolation, and backward compatibility.
+- **Live Imported Dataset**: Successfully ingested and verified live Whole Blood inventory for Delhi and Lucknow (155 external facilities, 46 stock reports).
+
+### ⏳ Upcoming Roadmap Features
+- **Medical Compatibility Engine (Step 4)**: Deterministic ABO/Rh red cell and plasma compatibility logic with unit-tested cross-match validation.
+- **Voluntary Donor Coordination & Privacy Relay (Step 5)**: Consent-driven alert dispatch via Telegram Bot API without exposing donor contact details.
+- **Human Moderation Queue**: Administrative review checkpoint for urgent or sensitive requests prior to donor notification broadcasts.
+- **Intelligent Triage Agent (Step 6)**: Gemma 4 integration with a 100% deterministic rule-based fallback parser for emergency query understanding.
 
 ---
 
@@ -50,8 +63,9 @@ RaktSetu is an open-source, AI-powered blood discovery and voluntary donor coord
                                           v
                       +---------------------------------------+
                       |        FastAPI Backend (Python)       |
-                      |  - ABO/Rh Medical Compatibility Engine |
+                      |  - Blood Bank Discovery Engine        |
                       |  - Source & Freshness Attribution     |
+                      |  - ABO/Rh Medical Compatibility       |
                       |  - Donor Privacy & Relay Controller   |
                       |  - Human Moderation Gatekeeper        |
                       +-----+-------------------+-------+-----+
@@ -62,22 +76,22 @@ RaktSetu is an open-source, AI-powered blood discovery and voluntary donor coord
 |     SQLite Local DB   |           |  AI Agent (Gemma 4 /  |   | Telegram Bot API  |
 | (Dev/Prototype Stage) |           |  Rule-Based Fallback) |   | (Donor Alerts &   |
 +-----------------------+           +-----------------------+   |  Coordination)    |
-                                                |               +-------------------+
-                                                v
-                                    +-----------------------+
-                                    |  Modular Data Client  |
-                                    | (TinyFish Connector)  |
-                                    +-----------------------+
+            ^                                   |               +-------------------+
+            | Ingestion CLI                     v
++-----------------------+           +-----------------------+
+|  e-RaktKosh Pipeline  |<----------| MoHFW External Portal |
+| (Parser + Normalizer) |           |   (Public Stock Feed) |
++-----------------------+           +-----------------------+
 ```
 
 ### Technology Decisions
 
-- **Frontend**: React 18/19, TypeScript, Vite, Tailwind CSS.
-- **Backend**: Python 3.11+, FastAPI, Pydantic v2, SQLModel / SQLAlchemy.
-- **Database**: SQLite for local-first zero-cost development; modular design allows seamless migration to PostgreSQL.
-- **Messaging**: Telegram Bot API for donor notifications and moderator review.
-- **AI Agent**: Gemma 4 (local inference or API) with a 100% deterministic rule-based fallback parser.
-- **Data Retrieval**: Modular TinyFish client with caching, strict rate-limiting, and budget guardrails.
+- **Frontend**: React 19, TypeScript, Vite, Tailwind CSS, Lucide Icons, Three.js / Canvas 3D.
+- **Backend**: Python 3.11+, FastAPI, Pydantic v2, SQLAlchemy 2.x, SQLite.
+- **Database**: SQLite for local-first zero-cost development; versioned schema migrations enable modular evolution.
+- **Messaging**: Telegram Bot API for donor notifications and moderator review *(Planned)*.
+- **AI Agent**: Gemma 4 (local inference or API) with a 100% deterministic rule-based fallback parser *(Planned)*.
+- **Data Ingestion**: Fail-safe e-RaktKosh client with rate-limiting, strict HTML sanitizer, and non-destructive reconciliation.
 
 ---
 
@@ -89,16 +103,22 @@ RaktSetu is architected to be developed, tested, and demonstrated entirely on a 
 
 ## Project Status & Development Roadmap
 
-- [x] **Step 1A: Repository Foundation** (Git, .gitignore, README, MIT License, Skeleton)
-- [x] **Step 1B: Backend Scaffolding & Healthcheck** (FastAPI app, Pydantic schemas, healthcheck endpoint, automated tests)
-- [x] **Step 1C: Frontend Scaffolding** (Vite + React + TypeScript + Tailwind CSS v4)
+- [x] **Step 1A: Repository Foundation** (Git, .gitignore, README, MIT License, Project Architecture)
+- [x] **Step 1B: Backend Scaffolding & Healthcheck** (FastAPI app, Pydantic schemas, health endpoint, automated pytest suite)
+- [x] **Step 1C: Frontend Scaffolding & Visual Canvas** (Vite + React 19 + TypeScript + Tailwind CSS, 3D Droplet Scene)
 - [x] **Step 2A: Blood Bank Discovery API** (SQLAlchemy 2.x, SQLite, idempotent synthetic seeder, discovery endpoint)
-- [ ] **Step 2B: Medical Compatibility Engine** (Deterministic ABO/Rh logic, compatibility unit tests)
-- [ ] **Step 3: Blood Bank Freshness & External Connectors** (Source attribution, TinyFish worker client)
-- [ ] **Step 4: Voluntary Donor Matching & Privacy Relay** (Consent flow, Telegram bot dispatch)
-- [ ] **Step 5: AI Triage Agent** (Gemma 4 integration + deterministic fallback)
-- [ ] **Step 6: Unified UI Dashboard** (Emergency search, live freshness indicators, donor portal)
-- [ ] **Step 7: Verification, Documentation & Open-Source Release**
+- [x] **Step 3: e-RaktKosh Data Ingestion Pipeline & Real Data Prioritization**
+  - [x] **Step 3A–3F: Source Ingestion Engine**: e-RaktKosh client, HTML table parser, contact redaction, IST->UTC timestamp conversion.
+  - [x] **Step 3G–3H: Schema Migration (v2)**: Guarded migration with component-aware schema, source tracking, and isolation.
+  - [x] **Step 3I: Deterministic Facility Identity**: Slug generator and composite key resolution preventing hospital collisions.
+  - [x] **Step 3J: Mixed-Source Discovery**: API envelope & frontend types supporting both external feeds and demo datasets.
+  - [x] **Step 3K–3M: Safety Audits & Reconciliation Hardening**: Non-destructive reconciliation, scoped unavailability, and multi-city dry runs.
+  - [x] **Step 3N: First Controlled Import**: Successful import of Delhi & Lucknow Whole Blood inventory (155 facilities, 46 stock reports).
+  - [x] **Step 3O–3P: Real Data by Default**: Frontend discovery displays real e-RaktKosh data by default, with "Include demo data" toggle, stale warnings (>24h), and synchronized visible counts.
+- [ ] **Step 4: Medical Compatibility Engine** (Deterministic ABO/Rh logic, compatibility unit tests)
+- [ ] **Step 5: Voluntary Donor Matching & Privacy Relay** (Opt-in consent flow, Telegram bot dispatch)
+- [ ] **Step 6: AI Triage Agent** (Gemma 4 integration + deterministic rule-based fallback)
+- [ ] **Step 7: Unified Emergency Coordination Dashboard & Release**
 
 ---
 
@@ -123,12 +143,31 @@ Populate the local SQLite database (`data/raktsetu.db`) with fictional demo reco
 > **Synthetic Dataset Notice:** All demo records are strictly fictional demonstration data covering Delhi and Lucknow. Stock numbers are illustrative snapshot records, not real-time hospital inventory or a guarantee of physical blood availability.
 > The seeding script is **idempotent**: running it again will safely skip without overwriting or duplicating records.
 
-### 3. Run Automated Tests
+### 3. e-RaktKosh External Data Ingestion CLI
+Run read-only dry runs or apply live imports of e-RaktKosh Whole Blood data:
+```bash
+# Safe dry-run for Delhi (no database changes)
+.\.venv\Scripts\python.exe -m backend.app.ingest_eraktkosh --city Delhi
+
+# Safe dry-run for Lucknow
+.\.venv\Scripts\python.exe -m backend.app.ingest_eraktkosh --city Lucknow
+
+# Safe dry-run across all target cities
+.\.venv\Scripts\python.exe -m backend.app.ingest_eraktkosh --city all
+
+# Controlled import applying changes to local SQLite database
+.\.venv\Scripts\python.exe -m backend.app.ingest_eraktkosh --city all --apply
+```
+> [!TIP]
+> Ingestion defaults to **dry-run mode** unless `--apply` is explicitly passed. Reconciliation is strictly fail-safe: facilities missing from a source snapshot are never removed from the database.
+
+### 4. Run Automated Backend Tests
 ```bash
 .\.venv\Scripts\python.exe -m pytest backend/tests -v
 ```
+All 184 tests pass across parser, normalizer, identity slugging, ingestion, migration, safety invariants, and discovery endpoints.
 
-### 4. Start Local Development Server
+### 5. Start Local Development Server
 ```bash
 .\.venv\Scripts\python.exe -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000
 ```
@@ -136,9 +175,9 @@ Populate the local SQLite database (`data/raktsetu.db`) with fictional demo reco
 - Alternative Redoc: [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc)
 - Health Check: [http://127.0.0.1:8000/api/health](http://127.0.0.1:8000/api/health)
 
-### 5. Blood Bank Discovery API Examples
+### 6. Blood Bank Discovery API Examples
 
-Discovery queries return an envelope with `items`, `count` (number of matching blood banks), and `data_notice`:
+Discovery queries return an envelope with `items`, `count` (number of matching blood banks), `data_notice`, and snapshot `data_timestamp`:
 
 - **All blood banks (Delhi & Lucknow)**:
   ```http
@@ -152,40 +191,47 @@ Discovery queries return an envelope with `items`, `count` (number of matching b
 - **Filter by blood group**:
   ```http
   GET /api/blood-banks?blood_group=O-
-  GET /api/blood-banks?blood_group=A%2B
+  GET /api/blood-banks?blood_group=O%2B
   ```
 - **Combined city and blood group query**:
   ```http
-  GET /api/blood-banks?city=Delhi&blood_group=O-
+  GET /api/blood-banks?city=Delhi&blood_group=O%2B
   ```
 
-Example JSON Response:
+Example JSON Response (Mixed / Source-Reported):
 ```json
 {
   "items": [
     {
-      "id": 1,
-      "name": "Demo Central Transfusion Facility",
+      "id": 10,
+      "name": "AIIMS Main Blood Bank",
       "city": "Delhi",
-      "locality": "Connaught Place (Central Delhi)",
+      "locality": "Ansari Nagar",
+      "category": "Government",
+      "source_name": "e-RaktKosh (MoHFW)",
+      "source_type": "external_source",
+      "source_facility_id": "eraktkosh:delhi:aiims-main-blood-bank",
       "stock_reports": [
         {
-          "id": 8,
-          "blood_bank_id": 1,
-          "blood_group": "O-",
-          "units_reported": 5,
-          "source_name": "Synthetic demo dataset",
-          "data_timestamp": "2026-10-15T12:00:00Z",
-          "verification_status": "demo"
+          "id": 142,
+          "blood_bank_id": 10,
+          "blood_group": "O+",
+          "blood_component": "Whole Blood",
+          "units_reported": 18,
+          "source_name": "e-RaktKosh (MoHFW)",
+          "verification_status": "reported_unverified",
+          "source_reported_timestamp": "2026-10-16T05:30:00Z",
+          "retrieval_timestamp": "2026-10-16T06:00:00Z",
+          "data_timestamp": "2026-10-16T06:00:00Z"
         }
       ]
     }
   ],
   "count": 1,
-  "data_notice": "All records are synthetic demonstration data and do not reflect real-time hospital inventory or guaranteed physical blood availability."
+  "data_notice": "Official source-reported e-RaktKosh snapshots (MoHFW). External inventory is source-reported, may be stale, and does not guarantee real-time physical blood availability. Always verify directly with the blood bank.",
+  "data_timestamp": "2026-10-16T06:00:00Z"
 }
 ```
-
 
 ---
 
@@ -198,17 +244,23 @@ cd frontend
 npm install
 ```
 
-### 2. Start Development Server
+### 2. Run Automated Frontend Tests
+Execute the native unit test suite (25 tests covering URL building, response contracts, freshness/stale detection, and demo data filtering):
+```bash
+npm test
+```
+
+### 3. Start Development Server
 ```bash
 npm run dev
 ```
-The local development server runs at `http://localhost:5173/`.
+The local development server runs at [http://localhost:5173/](http://localhost:5173/) with automatic proxying to the FastAPI backend (`http://127.0.0.1:8000`).
 
-### 3. Build for Production
+### 4. Build for Production
 ```bash
 npm run build
 ```
-Production assets are generated in `frontend/dist/`.
+Production assets are compiled and validated with TypeScript in `frontend/dist/`.
 
 ---
 
