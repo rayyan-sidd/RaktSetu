@@ -303,7 +303,11 @@ class TestIngestionDatabaseIntegration:
             apply=True,
         )
         assert res2.facilities_created == 0
-        assert res2.facilities_updated == 5
+        assert res2.facilities_updated == 0
+        assert res2.facilities_unchanged == 5
+        assert res2.reports_created == 0
+        assert res2.reports_updated == 0
+        assert res2.reports_unchanged == 6
         assert res2.reports_upserted == 6
         assert res2.reports_withdrawn == 0
 
@@ -866,3 +870,430 @@ class TestAmbiguityAndPlaceholderIdentityIntegration:
         assert fac_b is not None
         # Invariant: Facility B reports no stock, but Facility A's stock is untouched!
         assert len(fac_b.stock_reports) == 0
+
+
+class TestHardenIngestionReconciliation:
+    """Regression tests for Step 3L fail-safe reconciliation invariants."""
+
+    def test_omitted_facility_in_partial_snapshot_never_withdrawn(
+        self, db_session: Session
+    ) -> None:
+        """A facility missing from a source response must not automatically have its
+        existing stock reports deleted or marked unavailable.
+        """
+        # Step 1: Snapshot with Facility Alpha (2 reports) and Facility Beta (1 report)
+        snapshot_1 = {
+            "draw": 1,
+            "data": [
+                [
+                    "1",
+                    "FACILITY ALPHA<br/>Connaught Place, New Delhi 110001",
+                    "Govt.",
+                    "<p>Available, B+Ve:5, O+Ve:10</p>",
+                    "2026-10-16 02:00:00",
+                    "Blood Bank",
+                ],
+                [
+                    "2",
+                    "FACILITY BETA<br/>Saket, New Delhi 110017",
+                    "Private",
+                    "<p>Available, A+Ve:8</p>",
+                    "2026-10-16 02:00:00",
+                    "Blood Bank",
+                ],
+            ],
+        }
+
+        res1 = ingest_eraktkosh_city_payload(
+            db=db_session,
+            city="Delhi",
+            payload=snapshot_1,
+            component="Whole Blood",
+            apply=True,
+        )
+        assert res1.facilities_created == 2
+        assert res1.reports_upserted == 3
+
+        # Step 2: Ingest partial snapshot where Facility Beta is completely OMITTED
+        # Facility Alpha updates B+ to 7 and drops O+
+        snapshot_2 = {
+            "draw": 2,
+            "data": [
+                [
+                    "1",
+                    "FACILITY ALPHA<br/>Connaught Place, New Delhi 110001",
+                    "Govt.",
+                    "<p>Available, B+Ve:7</p>",
+                    "2026-10-16 06:00:00",
+                    "Blood Bank",
+                ]
+            ],
+        }
+
+        res2 = ingest_eraktkosh_city_payload(
+            db=db_session,
+            city="Delhi",
+            payload=snapshot_2,
+            component="Whole Blood",
+            apply=True,
+        )
+
+        # Invariant 1: Only 1 report was withdrawn (Facility Alpha's O+)
+        assert res2.reports_withdrawn == 1
+        assert res2.reports_updated == 1
+
+        # Invariant 2: Facility Beta is still in DB with its stock intact!
+        beta = db_session.scalar(
+            select(BloodBank).where(BloodBank.name == "FACILITY BETA")
+        )
+        assert beta is not None
+        assert len(beta.stock_reports) == 1
+        assert beta.stock_reports[0].blood_group == "A+"
+        assert beta.stock_reports[0].units_reported == 8
+
+        # Invariant 3: Facility Alpha has only B+ at 7 units
+        alpha = db_session.scalar(
+            select(BloodBank).where(BloodBank.name == "FACILITY ALPHA")
+        )
+        assert alpha is not None
+        assert len(alpha.stock_reports) == 1
+        assert alpha.stock_reports[0].blood_group == "B+"
+        assert alpha.stock_reports[0].units_reported == 7
+
+    def test_reconcile_scope_city_permanently_rejected(
+        self, db_session: Session
+    ) -> None:
+        """City-wide reconciliation must be prevented unless completeness can be independently proved."""
+        empty_payload = {"draw": 1, "data": []}
+
+        with pytest.raises(ValueError) as exc_info:
+            ingest_eraktkosh_city_payload(
+                db=db_session,
+                city="Delhi",
+                payload=empty_payload,
+                reconcile_scope="city",
+            )
+        assert "City-wide reconciliation is disabled for e-RaktKosh" in str(exc_info.value)
+
+        with pytest.raises(ValueError) as exc_info2:
+            ingest_eraktkosh_city_payload(
+                db=db_session,
+                city="Delhi",
+                payload=empty_payload,
+                reconcile_scope="unknown_scope",
+            )
+        assert "Unsupported reconcile_scope" in str(exc_info2.value)
+
+    def test_explicit_unavailable_scoped_strictly_to_facility_group_and_component(
+        self, db_session: Session
+    ) -> None:
+        """Explicit unavailable stock affects only the matching facility and component."""
+        # 1. Facility A has Whole Blood and PRBC
+        # 2. Facility B has Whole Blood
+        fac_a = BloodBank(
+            name="FACILITY A",
+            city="Delhi",
+            locality="Karol Bagh",
+            source_type="external_source",
+            source_name=DEFAULT_ERAKTKOSH_SOURCE,
+            source_facility_id="eraktkosh:delhi:facility-a:karol-bagh",
+            raw_address="Karol Bagh, New Delhi",
+        )
+        fac_b = BloodBank(
+            name="FACILITY B",
+            city="Delhi",
+            locality="Dwarka",
+            source_type="external_source",
+            source_name=DEFAULT_ERAKTKOSH_SOURCE,
+            source_facility_id="eraktkosh:delhi:facility-b:dwarka",
+            raw_address="Dwarka, New Delhi",
+        )
+        db_session.add_all([fac_a, fac_b])
+        db_session.flush()
+
+        now_utc = datetime.now(timezone.utc)
+        rep_a_wb = StockReport(
+            blood_bank_id=fac_a.id,
+            blood_group="B+",
+            blood_component="Whole Blood",
+            units_reported=5,
+            source_name=DEFAULT_ERAKTKOSH_SOURCE,
+            data_timestamp=now_utc,
+            verification_status=STATUS_REPORTED_UNVERIFIED,
+        )
+        rep_a_prbc = StockReport(
+            blood_bank_id=fac_a.id,
+            blood_group="B+",
+            blood_component="Packed Red Blood Cells",
+            units_reported=12,
+            source_name=DEFAULT_ERAKTKOSH_SOURCE,
+            data_timestamp=now_utc,
+            verification_status=STATUS_REPORTED_UNVERIFIED,
+        )
+        rep_b_wb = StockReport(
+            blood_bank_id=fac_b.id,
+            blood_group="B+",
+            blood_component="Whole Blood",
+            units_reported=8,
+            source_name=DEFAULT_ERAKTKOSH_SOURCE,
+            data_timestamp=now_utc,
+            verification_status=STATUS_REPORTED_UNVERIFIED,
+        )
+        db_session.add_all([rep_a_wb, rep_a_prbc, rep_b_wb])
+        db_session.commit()
+
+        # Ingest payload where Facility A explicitly reports Whole Blood Not Available
+        payload = {
+            "draw": 1,
+            "data": [
+                [
+                    "1",
+                    "FACILITY A<br/>Karol Bagh, New Delhi",
+                    "Govt.",
+                    "<p class='text-danger'><b>Whole Blood</b>Not Available Search for another Component</p>",
+                    "2026-10-16 05:00:00",
+                    "Blood Bank",
+                ]
+            ],
+        }
+
+        res = ingest_eraktkosh_city_payload(
+            db=db_session,
+            city="Delhi",
+            payload=payload,
+            component="Whole Blood",
+            apply=True,
+        )
+
+        assert res.reports_withdrawn == 1
+
+        # Check Facility A: Whole Blood report withdrawn, but PRBC report remains intact!
+        db_session.refresh(fac_a)
+        reports_a = {r.blood_component: r.units_reported for r in fac_a.stock_reports}
+        assert "Whole Blood" not in reports_a
+        assert reports_a["Packed Red Blood Cells"] == 12
+
+        # Check Facility B: Whole Blood report remains completely intact!
+        db_session.refresh(fac_b)
+        reports_b = {r.blood_component: r.units_reported for r in fac_b.stock_reports}
+        assert reports_b["Whole Blood"] == 8
+
+    def test_malformed_rows_never_cause_zero_stock_interpretation_or_stock_withdrawal(
+        self, db_session: Session
+    ) -> None:
+        """Malformed or incomplete rows must never be interpreted as zero stock or cause withdrawal."""
+        # Setup: Facility exists with stock
+        fac = BloodBank(
+            name="FACILITY STABLE",
+            city="Delhi",
+            locality="Rohini",
+            source_type="external_source",
+            source_name=DEFAULT_ERAKTKOSH_SOURCE,
+            source_facility_id="eraktkosh:delhi:facility-stable:rohini",
+            raw_address="Rohini, New Delhi",
+        )
+        db_session.add(fac)
+        db_session.flush()
+
+        rep = StockReport(
+            blood_bank_id=fac.id,
+            blood_group="O+",
+            blood_component="Whole Blood",
+            units_reported=15,
+            source_name=DEFAULT_ERAKTKOSH_SOURCE,
+            data_timestamp=datetime.now(timezone.utc),
+            verification_status=STATUS_REPORTED_UNVERIFIED,
+        )
+        db_session.add(rep)
+        db_session.commit()
+
+        # Incoming snapshot contains a malformed row for this facility
+        # (e.g. invalid availability HTML with no quantities and not explicit "Not Available")
+        malformed_payload = {
+            "draw": 1,
+            "data": [
+                [
+                    "1",
+                    "FACILITY STABLE<br/>Rohini, New Delhi",
+                    "Govt.",
+                    "<p>Corrupted Availability Data Without Format</p>",
+                    "2026-10-16 06:00:00",
+                    "Blood Bank",
+                ]
+            ],
+        }
+
+        res = ingest_eraktkosh_city_payload(
+            db=db_session,
+            city="Delhi",
+            payload=malformed_payload,
+            component="Whole Blood",
+            apply=True,
+        )
+
+        assert res.failed_rows_count == 1
+        assert res.reports_withdrawn == 0
+
+        # Existing stock must remain intact in DB
+        db_session.refresh(fac)
+        assert len(fac.stock_reports) == 1
+        assert fac.stock_reports[0].units_reported == 15
+
+    def test_dry_run_simulation_granular_metrics(
+        self, db_session: Session
+    ) -> None:
+        """Dry-run accurately simulates created, updated, unchanged, and withdrawn counts without DB writes."""
+        # Seed 1 existing facility with 1 stock report
+        fac = BloodBank(
+            name="FACILITY EXISTING",
+            city="Delhi",
+            locality="Lajpat Nagar",
+            category="Govt.",
+            facility_type="Blood Bank",
+            source_type="external_source",
+            source_name=DEFAULT_ERAKTKOSH_SOURCE,
+            source_facility_id="eraktkosh:delhi:facility-existing:lajpat-nagar",
+            raw_address="Lajpat Nagar, New Delhi",
+        )
+        db_session.add(fac)
+        db_session.flush()
+        db_session.add(
+            StockReport(
+                blood_bank_id=fac.id,
+                blood_group="A+",
+                blood_component="Whole Blood",
+                units_reported=10,
+                source_name=DEFAULT_ERAKTKOSH_SOURCE,
+                data_timestamp=datetime.now(timezone.utc),
+                verification_status=STATUS_REPORTED_UNVERIFIED,
+            )
+        )
+        db_session.commit()
+
+        # Payload has:
+        # 1. Existing facility with same metadata and same stock -> unchanged
+        # 2. Brand new facility with B+: 5 -> created facility, created report
+        # 3. Brand new facility with Whole Blood Not Available -> created facility, 0 reports
+        payload = {
+            "draw": 1,
+            "data": [
+                [
+                    "1",
+                    "FACILITY EXISTING<br/>Lajpat Nagar, New Delhi",
+                    "Govt.",
+                    "<p>Available, A+Ve:10</p>",
+                    "2026-10-16 02:00:00",
+                    "Blood Bank",
+                ],
+                [
+                    "2",
+                    "FACILITY NEW ONE<br/>Okhla, New Delhi",
+                    "Private",
+                    "<p>Available, B+Ve:5</p>",
+                    "2026-10-16 02:00:00",
+                    "Blood Bank",
+                ],
+                [
+                    "3",
+                    "FACILITY NEW ZERO<br/>Jasola, New Delhi",
+                    "Charitable",
+                    "<p class='text-danger'><b>Whole Blood</b>Not Available</p>",
+                    "2026-10-16 02:00:00",
+                    "Blood Bank",
+                ],
+            ],
+        }
+
+        res = ingest_eraktkosh_city_payload(
+            db=db_session,
+            city="Delhi",
+            payload=payload,
+            component="Whole Blood",
+            apply=False,
+        )
+
+        assert res.is_dry_run is True
+        assert res.facilities_parsed == 3
+        assert res.facilities_with_available_stock == 2
+        assert res.facilities_with_unavailable_stock == 1
+        assert res.stock_observations_parsed == 2
+        assert res.facilities_created == 2
+        assert res.facilities_updated == 0
+        assert res.facilities_unchanged == 1
+        assert res.reports_created == 1
+        assert res.reports_updated == 0
+        assert res.reports_unchanged == 1
+        assert res.reports_withdrawn == 0
+
+        # Assert database was NOT modified at all
+        assert db_session.scalar(select(func.count(BloodBank.id))) == 1
+        assert db_session.scalar(select(func.count(StockReport.id))) == 1
+
+    def test_facility_metadata_change_tracked_in_metrics(
+        self, db_session: Session
+    ) -> None:
+        """Verify facilities_updated increments when facility attributes change."""
+        payload_v1 = {
+            "draw": 1,
+            "data": [
+                [
+                    "1",
+                    "FACILITY MOD<br/>10 Barakhamba Road, Connaught Place, New Delhi",
+                    "Govt.",
+                    "<p>Available, A+Ve:5</p>",
+                    "2026-10-16 02:00:00",
+                    "Blood Bank",
+                ]
+            ],
+        }
+        res1 = ingest_eraktkosh_city_payload(
+            db=db_session,
+            city="Delhi",
+            payload=payload_v1,
+            apply=True,
+        )
+        assert res1.facilities_created == 1
+        assert res1.facilities_updated == 0
+        assert res1.facilities_unchanged == 0
+
+        # Now ingest with updated address line and changed units (locality unchanged)
+        payload_v2 = {
+            "draw": 2,
+            "data": [
+                [
+                    "1",
+                    "FACILITY MOD<br/>20 Barakhamba Road, Connaught Place, New Delhi",
+                    "Govt.",
+                    "<p>Available, A+Ve:12</p>",
+                    "2026-10-16 04:00:00",
+                    "Blood Bank",
+                ]
+            ],
+        }
+        # In dry run:
+        dry_res = ingest_eraktkosh_city_payload(
+            db=db_session,
+            city="Delhi",
+            payload=payload_v2,
+            apply=False,
+        )
+        assert dry_res.facilities_created == 0
+        assert dry_res.facilities_updated == 1
+        assert dry_res.facilities_unchanged == 0
+        assert dry_res.reports_created == 0
+        assert dry_res.reports_updated == 1
+        assert dry_res.reports_unchanged == 0
+
+        # In apply mode:
+        apply_res = ingest_eraktkosh_city_payload(
+            db=db_session,
+            city="Delhi",
+            payload=payload_v2,
+            apply=True,
+        )
+        assert apply_res.facilities_created == 0
+        assert apply_res.facilities_updated == 1
+        assert apply_res.facilities_unchanged == 0
+        assert apply_res.reports_created == 0
+        assert apply_res.reports_updated == 1
+        assert apply_res.reports_unchanged == 0

@@ -50,6 +50,15 @@ class CityIngestionResult:
     reports_upserted: int
     reports_withdrawn: int
     warnings: list[str] = field(default_factory=list)
+    reconcile_scope: str = "facilities_in_payload"
+    facilities_parsed: int = 0
+    facilities_with_available_stock: int = 0
+    facilities_with_unavailable_stock: int = 0
+    stock_observations_parsed: int = 0
+    facilities_unchanged: int = 0
+    reports_created: int = 0
+    reports_updated: int = 0
+    reports_unchanged: int = 0
 
 
 def ingest_eraktkosh_city_payload(
@@ -58,7 +67,7 @@ def ingest_eraktkosh_city_payload(
     payload: dict[str, Any],
     component: str = "Whole Blood",
     apply: bool = False,
-    reconcile_scope: str = "city",
+    reconcile_scope: str = "facilities_in_payload",
     retrieval_timestamp: Optional[datetime] = None,
 ) -> CityIngestionResult:
     """Parse, normalize, and ingest an e-RaktKosh city response payload into the database.
@@ -73,6 +82,8 @@ def ingest_eraktkosh_city_payload(
     4. Contact info redaction: phone numbers, faxes, emails are stripped by the parser
        and never stored in raw_address or locality.
     5. Safe reconciliation:
+       - Scope defaults strictly to 'facilities_in_payload'.
+       - Missing facilities from a source response are NEVER deleted or marked unavailable.
        - Re-ingestion is idempotent.
        - Facilities reporting no stock have their previous reports for this component withdrawn.
        - Facilities dropping a blood group have that specific group report withdrawn.
@@ -85,13 +96,24 @@ def ingest_eraktkosh_city_payload(
         payload: e-RaktKosh raw JSON response dictionary.
         component: Blood component name (defaults to 'Whole Blood').
         apply: If True, writes changes to the database transactionally.
-        reconcile_scope: 'city' to reconcile all external facilities in city, or
-                         'facilities_in_payload' to reconcile only facilities present in payload.
+        reconcile_scope: 'facilities_in_payload' (safe facility-level reconciliation).
+                         'city' is permanently disabled as source responses lack completeness proof.
         retrieval_timestamp: Explicit UTC retrieval timestamp or defaults to current UTC time.
 
     Returns:
         CityIngestionResult: Metric counts and warnings.
     """
+    if reconcile_scope == "city":
+        raise ValueError(
+            "City-wide reconciliation is disabled for e-RaktKosh because upstream source responses "
+            "do not provide independent proof of snapshot completeness. Use "
+            "reconcile_scope='facilities_in_payload' to reconcile only observed facilities."
+        )
+    if reconcile_scope != "facilities_in_payload":
+        raise ValueError(
+            f"Unsupported reconcile_scope '{reconcile_scope}'. Supported: 'facilities_in_payload'."
+        )
+
     if city not in SUPPORTED_CITIES:
         raise ValueError(f"Unsupported city '{city}'. Supported cities: {SUPPORTED_CITIES}.")
 
@@ -158,24 +180,93 @@ def ingest_eraktkosh_city_payload(
         facilities_map.setdefault(fac_id, []).append(row)
 
 
-    # Telemetry counters
-    facilities_created_count = 0
-    facilities_updated_count = 0
-    reports_upserted_count = 0
-    reports_withdrawn_count = 0
+    # Consolidate per facility
+    facilities_parsed_count = len(facilities_map)
+    facilities_with_available_stock_count = 0
+    facilities_with_unavailable_stock_count = 0
+    stock_observations_parsed_count = 0
 
-    if not apply:
-        # Dry-run: compute simulation metrics without any DB writes
-        simulated_reports = 0
-        for fac_id, rows in facilities_map.items():
-            # Combine items across rows for this facility
-            seen_groups = set()
+    consolidated_per_facility: dict[str, dict[str, int]] = {}
+    primary_row_per_facility: dict[str, ParsedRowResult] = {}
+
+    for fac_id, rows in facilities_map.items():
+        primary_row = rows[0]
+        for r in rows[1:]:
+            if r.source_reported_timestamp and not primary_row.source_reported_timestamp:
+                primary_row = r
+        primary_row_per_facility[fac_id] = primary_row
+
+        is_any_row_available = any(r.is_available for r in rows)
+        consolidated_items: dict[str, int] = {}
+        if is_any_row_available:
+            facilities_with_available_stock_count += 1
             for r in rows:
                 if r.is_available:
                     for item in r.availability_items:
-                        if item.blood_group not in seen_groups:
-                            seen_groups.add(item.blood_group)
-                            simulated_reports += 1
+                        if (
+                            item.blood_group not in consolidated_items
+                            or item.units > consolidated_items[item.blood_group]
+                        ):
+                            consolidated_items[item.blood_group] = item.units
+        else:
+            facilities_with_unavailable_stock_count += 1
+
+        consolidated_per_facility[fac_id] = consolidated_items
+        stock_observations_parsed_count += len(consolidated_items)
+
+    if not apply:
+        # Dry-run: compute simulation metrics by inspecting current DB state (read-only)
+        sim_facilities_created = 0
+        sim_facilities_updated = 0
+        sim_facilities_unchanged = 0
+        sim_reports_created = 0
+        sim_reports_updated = 0
+        sim_reports_unchanged = 0
+        sim_reports_withdrawn = 0
+
+        for fac_id, primary_row in primary_row_per_facility.items():
+            consolidated_items = consolidated_per_facility[fac_id]
+            existing_bank = db.scalar(
+                select(BloodBank).where(
+                    BloodBank.source_name == DEFAULT_ERAKTKOSH_SOURCE,
+                    BloodBank.source_facility_id == fac_id,
+                )
+            )
+
+            if existing_bank is None:
+                sim_facilities_created += 1
+                sim_reports_created += len(consolidated_items)
+            else:
+                has_meta_diff = (
+                    existing_bank.locality != primary_row.facility_info.locality
+                    or existing_bank.raw_address != primary_row.facility_info.raw_address
+                    or (primary_row.category and existing_bank.category != primary_row.category)
+                    or (primary_row.facility_type and existing_bank.facility_type != primary_row.facility_type)
+                )
+                if has_meta_diff:
+                    sim_facilities_updated += 1
+                else:
+                    sim_facilities_unchanged += 1
+
+                existing_reports = {
+                    r.blood_group: r
+                    for r in existing_bank.stock_reports
+                    if r.blood_component == component and r.source_name == DEFAULT_ERAKTKOSH_SOURCE
+                }
+
+                for grp, units in consolidated_items.items():
+                    if grp not in existing_reports:
+                        sim_reports_created += 1
+                    elif existing_reports[grp].units_reported != units:
+                        sim_reports_updated += 1
+                    else:
+                        sim_reports_unchanged += 1
+
+                for grp in existing_reports:
+                    if grp not in consolidated_items:
+                        sim_reports_withdrawn += 1
+
+        sim_reports_upserted = sim_reports_created + sim_reports_updated + sim_reports_unchanged
 
         return CityIngestionResult(
             city=city,
@@ -185,47 +276,43 @@ def ingest_eraktkosh_city_payload(
             source_rows_count=parsed.rows_parsed,
             successful_rows_count=len(parsed.successful_rows),
             failed_rows_count=len(parsed.failed_rows),
-            facilities_created=len(facilities_map),
-            facilities_updated=0,
-            reports_upserted=simulated_reports,
-            reports_withdrawn=0,
+            facilities_created=sim_facilities_created,
+            facilities_updated=sim_facilities_updated,
+            facilities_unchanged=sim_facilities_unchanged,
+            reports_created=sim_reports_created,
+            reports_updated=sim_reports_updated,
+            reports_unchanged=sim_reports_unchanged,
+            reports_upserted=sim_reports_upserted,
+            reports_withdrawn=sim_reports_withdrawn,
+            reconcile_scope=reconcile_scope,
+            facilities_parsed=facilities_parsed_count,
+            facilities_with_available_stock=facilities_with_available_stock_count,
+            facilities_with_unavailable_stock=facilities_with_unavailable_stock_count,
+            stock_observations_parsed=stock_observations_parsed_count,
             warnings=warnings,
         )
 
     # Apply mode: execute transactionally
+    facilities_created_count = 0
+    facilities_updated_count = 0
+    facilities_unchanged_count = 0
+    reports_created_count = 0
+    reports_updated_count = 0
+    reports_unchanged_count = 0
+    reports_upserted_count = 0
+    reports_withdrawn_count = 0
+
     try:
-        # Collect facility IDs processed in this snapshot
-        processed_facility_db_ids: set[int] = set()
-
-        for fac_id, rows in facilities_map.items():
-            # Pick primary row representation (prefer row with source timestamp if available)
-            primary_row = rows[0]
-            for r in rows[1:]:
-                if r.source_reported_timestamp and not primary_row.source_reported_timestamp:
-                    primary_row = r
-
-            # Consolidate available items across intra-payload duplicates for this facility
-            consolidated_items: dict[str, int] = {}
+        for fac_id, primary_row in primary_row_per_facility.items():
+            consolidated_items = consolidated_per_facility[fac_id]
             row_freshness: Optional[str] = primary_row.freshness_indicator
             row_source_ts: Optional[datetime] = primary_row.source_reported_timestamp
+            for r in facilities_map[fac_id]:
+                if r.source_reported_timestamp:
+                    row_source_ts = r.source_reported_timestamp
+                if r.freshness_indicator:
+                    row_freshness = r.freshness_indicator
 
-            is_any_row_available = any(r.is_available for r in rows)
-            if is_any_row_available:
-                for r in rows:
-                    if r.is_available:
-                        for item in r.availability_items:
-                            # Keep higher units if duplicate group appears within payload
-                            if (
-                                item.blood_group not in consolidated_items
-                                or item.units > consolidated_items[item.blood_group]
-                            ):
-                                consolidated_items[item.blood_group] = item.units
-                        if r.source_reported_timestamp:
-                            row_source_ts = r.source_reported_timestamp
-                        if r.freshness_indicator:
-                            row_freshness = r.freshness_indicator
-
-            # 1. Lookup or create BloodBank facility strictly isolated from demo records
             bank = db.scalar(
                 select(BloodBank).where(
                     BloodBank.source_name == DEFAULT_ERAKTKOSH_SOURCE,
@@ -249,18 +336,23 @@ def ingest_eraktkosh_city_payload(
                 db.flush()
                 facilities_created_count += 1
             else:
-                # Update facility metadata if changed
-                bank.locality = primary_row.facility_info.locality
-                bank.raw_address = primary_row.facility_info.raw_address
-                if primary_row.category:
-                    bank.category = primary_row.category
-                if primary_row.facility_type:
-                    bank.facility_type = primary_row.facility_type
-                facilities_updated_count += 1
+                has_meta_diff = (
+                    bank.locality != primary_row.facility_info.locality
+                    or bank.raw_address != primary_row.facility_info.raw_address
+                    or (primary_row.category and bank.category != primary_row.category)
+                    or (primary_row.facility_type and bank.facility_type != primary_row.facility_type)
+                )
+                if has_meta_diff:
+                    bank.locality = primary_row.facility_info.locality
+                    bank.raw_address = primary_row.facility_info.raw_address
+                    if primary_row.category:
+                        bank.category = primary_row.category
+                    if primary_row.facility_type:
+                        bank.facility_type = primary_row.facility_type
+                    facilities_updated_count += 1
+                else:
+                    facilities_unchanged_count += 1
 
-            processed_facility_db_ids.add(bank.id)
-
-            # 2. Upsert available stock reports for this facility
             reported_groups_for_fac: set[str] = set()
 
             for group, units in consolidated_items.items():
@@ -288,8 +380,10 @@ def ingest_eraktkosh_city_payload(
                         verification_status=STATUS_REPORTED_UNVERIFIED,
                     )
                     db.add(report)
+                    reports_created_count += 1
                     reports_upserted_count += 1
                 else:
+                    units_changed = (report.units_reported != units)
                     report.units_reported = units
                     report.source_name = DEFAULT_ERAKTKOSH_SOURCE
                     report.source_reported_timestamp = row_source_ts
@@ -297,10 +391,13 @@ def ingest_eraktkosh_city_payload(
                     report.freshness_indicator = row_freshness
                     report.data_timestamp = rec_retrieval_ts
                     report.verification_status = STATUS_REPORTED_UNVERIFIED
+                    if units_changed:
+                        reports_updated_count += 1
+                    else:
+                        reports_unchanged_count += 1
                     reports_upserted_count += 1
 
             # 3. Reconcile withdrawn groups for this specific facility
-            # (Delete reports for groups no longer reported or if facility reports no stock)
             withdrawn_reports = db.scalars(
                 select(StockReport).where(
                     StockReport.blood_bank_id == bank.id,
@@ -314,28 +411,9 @@ def ingest_eraktkosh_city_payload(
                 db.delete(old_rep)
                 reports_withdrawn_count += 1
 
-        # 4. Reconcile absent external facilities in city (if reconcile_scope == 'city')
-        if reconcile_scope == "city" and processed_facility_db_ids:
-            # Find any external facilities in this city that were NOT in the current snapshot
-            absent_external_banks = db.scalars(
-                select(BloodBank).where(
-                    BloodBank.city == city,
-                    BloodBank.source_name == DEFAULT_ERAKTKOSH_SOURCE,
-                    BloodBank.id.not_in(processed_facility_db_ids),
-                )
-            ).all()
-
-            for absent_bank in absent_external_banks:
-                absent_reports = db.scalars(
-                    select(StockReport).where(
-                        StockReport.blood_bank_id == absent_bank.id,
-                        StockReport.blood_component == component,
-                        StockReport.source_name == DEFAULT_ERAKTKOSH_SOURCE,
-                    )
-                ).all()
-                for old_rep in absent_reports:
-                    db.delete(old_rep)
-                    reports_withdrawn_count += 1
+        # NOTE: Absent external facilities in the city are intentionally NOT withdrawn.
+        # Rationale: e-RaktKosh responses provide no independent proof of snapshot completeness.
+        # A missing facility in a snapshot must never trigger deletion of existing records.
 
         db.commit()
 
@@ -355,8 +433,17 @@ def ingest_eraktkosh_city_payload(
         failed_rows_count=len(parsed.failed_rows),
         facilities_created=facilities_created_count,
         facilities_updated=facilities_updated_count,
+        facilities_unchanged=facilities_unchanged_count,
+        reports_created=reports_created_count,
+        reports_updated=reports_updated_count,
+        reports_unchanged=reports_unchanged_count,
         reports_upserted=reports_upserted_count,
         reports_withdrawn=reports_withdrawn_count,
+        reconcile_scope=reconcile_scope,
+        facilities_parsed=facilities_parsed_count,
+        facilities_with_available_stock=facilities_with_available_stock_count,
+        facilities_with_unavailable_stock=facilities_with_unavailable_stock_count,
+        stock_observations_parsed=stock_observations_parsed_count,
         warnings=warnings,
     )
 
@@ -367,7 +454,7 @@ def ingest_city_from_source(
     client: Optional[ERaktKoshClient] = None,
     component: str = "Whole Blood",
     apply: bool = False,
-    reconcile_scope: str = "city",
+    reconcile_scope: str = "facilities_in_payload",
 ) -> CityIngestionResult:
     """Retrieve stock details via client and ingest into database.
 
@@ -377,7 +464,7 @@ def ingest_city_from_source(
         client: ERaktKoshClient instance (or creates default).
         component: Blood component (default "Whole Blood").
         apply: True to commit to DB, False for dry run.
-        reconcile_scope: 'city' or 'facilities_in_payload'.
+        reconcile_scope: 'facilities_in_payload' (fail-safe facility-level reconciliation).
     """
     retrieval_client = client or ERaktKoshClient()
     payload = retrieval_client.fetch_stock_details(city=city, component=component)
@@ -493,8 +580,17 @@ def run_ingestion_cli(
                 print(f"  Source rows retrieved:    {res.source_rows_count}")
                 print(f"  Rows parsed successfully: {res.successful_rows_count}")
                 print(f"  Rows rejected / failed:   {res.failed_rows_count}")
+                print(f"  Distinct facilities parsed: {res.facilities_parsed}")
+                print(f"    - Stock reported:         {res.facilities_with_available_stock}")
+                print(f"    - No stock / zero:        {res.facilities_with_unavailable_stock}")
+                print(f"  Stock observations parsed:{res.stock_observations_parsed:>6}")
+                print(f"  Reconciliation scope:     {res.reconcile_scope}")
                 print(f"  Facilities created:       {res.facilities_created}")
                 print(f"  Facilities updated:       {res.facilities_updated}")
+                print(f"  Facilities unchanged:     {res.facilities_unchanged}")
+                print(f"  Stock reports created:    {res.reports_created}")
+                print(f"  Stock reports updated:    {res.reports_updated}")
+                print(f"  Stock reports unchanged:  {res.reports_unchanged}")
                 print(f"  Stock reports upserted:   {res.reports_upserted}")
                 print(f"  Stock reports withdrawn:  {res.reports_withdrawn}")
 
