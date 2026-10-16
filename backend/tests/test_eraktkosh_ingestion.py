@@ -708,3 +708,161 @@ class TestIngestionCLI:
         assert exit_code == 1
         captured = capsys.readouterr().out
         assert "Fixture file not found" in captured
+
+
+class TestAmbiguityAndPlaceholderIdentityIntegration:
+    """Verify identity fallback, collision detection, and safe reconciliation for placeholder rows."""
+
+    def test_identity_fallback_uses_address_when_name_missing_or_placeholder(self) -> None:
+        id_redcross = generate_facility_source_id(
+            city="Delhi",
+            facility_name="-",
+            locality="Sansad Marg Area",
+            raw_address="1, Red Cross Road, Sansad Marg Area, New Delhi",
+        )
+        assert "1-red-cross-road" in id_redcross
+        assert "facility:unspecified" not in id_redcross
+
+        id_plot = generate_facility_source_id(
+            city="Delhi",
+            facility_name="--",
+            locality="Delhi NCR",
+            raw_address="Plot No. 1, Sector 10, New Delhi",
+        )
+        assert "plot-no-1-sector-10" in id_plot
+        assert "facility:unspecified" not in id_plot
+
+        # Critical invariant: distinct rows with placeholder names NEVER share the same fallback identity
+        assert id_redcross != id_plot
+
+    def test_observed_delhi_placeholder_cases_generate_distinct_ids(self) -> None:
+        id_lady = generate_facility_source_id(
+            city="Delhi",
+            facility_name="Lady Hardinge Medical College",
+            locality="Connaught Place",
+            raw_address="Shaheed Bhagat Singh Marg, Connaught Place, New Delhi",
+        )
+        id_aiims = generate_facility_source_id(
+            city="Delhi",
+            facility_name="Blood Centre main Hospital, AIIMS Campus",
+            locality="Ansari Nagar East",
+            raw_address="Ansari Nagar East, New Delhi",
+        )
+        id_redcross = generate_facility_source_id(
+            city="Delhi",
+            facility_name="1, Red Cross Road, Sansad Marg Area, New Delhi",
+            locality="Sansad Marg Area",
+            raw_address="1, Red Cross Road, Sansad Marg Area, New Delhi",
+        )
+
+        assert id_lady.startswith("eraktkosh:delhi:")
+        assert id_aiims.startswith("eraktkosh:delhi:")
+        assert id_redcross.startswith("eraktkosh:delhi:")
+
+        # All 3 observed cases must be mutually distinct
+        assert len({id_lady, id_aiims, id_redcross}) == 3
+        for fid in [id_lady, id_aiims, id_redcross]:
+            assert len(fid) <= 100
+
+    def test_ambiguous_facility_collision_flagged_and_rejected(
+        self, db_session: Session
+    ) -> None:
+        # Construct payload where two rows map to the same slug but have conflicting addresses
+        ambiguous_payload = {
+            "draw": 1,
+            "data": [
+                [
+                    "1",
+                    "APEX BLOOD CENTRE<br/>10 Ring Road, Lajpat Nagar, New Delhi",
+                    "Private",
+                    "<p>Available, A+Ve:5</p>",
+                    "2026-10-16 02:00:00",
+                    "Blood Bank",
+                ],
+                [
+                    "2",
+                    "APEX BLOOD CENTRE<br/>50 Outer Ring Road, Lajpat Nagar, New Delhi",
+                    "Private",
+                    "<p>Available, B+Ve:3</p>",
+                    "2026-10-16 04:00:00",
+                    "Blood Bank",
+                ],
+            ],
+        }
+
+        # Mock generate_facility_source_id to simulate an unforeseen collision
+        with patch(
+            "backend.app.services.eraktkosh.ingestion.generate_facility_source_id",
+            return_value="eraktkosh:delhi:apex-blood-centre:lajpat-nagar",
+        ):
+            res = ingest_eraktkosh_city_payload(
+                db=db_session,
+                city="Delhi",
+                payload=ambiguous_payload,
+                component="Whole Blood",
+                apply=True,
+            )
+
+        # Invariant: Colliding rows must be flagged as ambiguous and rejected, not silently merged
+        assert res.facilities_created == 0
+        assert any("Ambiguous facility identity collision" in w for w in res.warnings)
+
+        # Database must have zero external banks created
+        banks = db_session.scalars(select(BloodBank)).all()
+        assert len(banks) == 0
+
+    def test_unavailable_stock_reconciliation_scoped_strictly_without_cross_facility_withdrawal(
+        self, db_session: Session
+    ) -> None:
+        # Snapshot containing two distinct facilities:
+        # Facility A reports Available O+: 8
+        # Facility B reports Whole Blood Not Available
+        payload = {
+            "draw": 1,
+            "data": [
+                [
+                    "1",
+                    "-<br/>1, Red Cross Road, Sansad Marg Area, New Delhi<br/>-",
+                    "Charitable",
+                    "<p>Available, O+Ve:8</p>",
+                    "2026-10-16 03:00:00",
+                    "Blood Bank",
+                ],
+                [
+                    "2",
+                    "-<br/>Plot No. 1, Sector 10, New Delhi<br/>-",
+                    "Govt.",
+                    "<p><b>Whole Blood</b>Not Available Search for another Component</p>",
+                    "2026-10-16 03:00:00",
+                    "Blood Bank",
+                ],
+            ],
+        }
+
+        res = ingest_eraktkosh_city_payload(
+            db=db_session,
+            city="Delhi",
+            payload=payload,
+            component="Whole Blood",
+            apply=True,
+        )
+
+        assert res.facilities_created == 2
+        assert res.reports_upserted == 1
+
+        # Check Facility A
+        fac_a = db_session.scalar(
+            select(BloodBank).where(BloodBank.name.like("%Red Cross Road%"))
+        )
+        assert fac_a is not None
+        assert len(fac_a.stock_reports) == 1
+        assert fac_a.stock_reports[0].blood_group == "O+"
+        assert fac_a.stock_reports[0].units_reported == 8
+
+        # Check Facility B
+        fac_b = db_session.scalar(
+            select(BloodBank).where(BloodBank.name.like("%Plot No. 1%"))
+        )
+        assert fac_b is not None
+        # Invariant: Facility B reports no stock, but Facility A's stock is untouched!
+        assert len(fac_b.stock_reports) == 0

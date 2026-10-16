@@ -398,3 +398,92 @@ class TestResponseParsingAndBatchNormalization:
         assert len(parsed.failed_rows) == 1
         assert len(parsed.successful_rows) == 1
         assert len(parsed.normalized_records) == 2
+
+
+class TestPlaceholderAndAmbiguousFacilityParsing:
+    """Verify robust handling of placeholder dashes, address preservation, and contact redaction."""
+
+    def test_lady_hardinge_placeholder_prefix_parsed(self) -> None:
+        html_input = (
+            "-<br/>Lady Hardinge Medical College, Shaheed Bhagat Singh Marg, "
+            "Connaught Place, New Delhi<br/>-"
+        )
+        info, err = parse_facility_html(html_input, default_city="Delhi")
+
+        assert err is None
+        assert info is not None
+        assert info.facility_name == "Lady Hardinge Medical College"
+        assert info.locality == "Connaught Place"
+        assert "Shaheed Bhagat Singh Marg" in info.raw_address
+        assert "-" not in info.facility_name
+        assert "-" not in info.locality
+
+    def test_blood_centre_aiims_campus_parsed(self) -> None:
+        html_input = (
+            "-<br/>Blood Centre main Hospital, AIIMS Campus, "
+            "Ansari Nagar East, New Delhi<br/>-"
+        )
+        info, err = parse_facility_html(html_input, default_city="Delhi")
+
+        assert err is None
+        assert info is not None
+        assert "Blood Centre main Hospital" in info.facility_name
+        assert "Ansari Nagar East" in info.locality
+        assert "-" not in info.facility_name
+
+    def test_address_only_preserves_text_without_inventing_facility_name(self) -> None:
+        html_input = "-<br/>1, Red Cross Road, Sansad Marg Area, New Delhi<br/>-"
+        info, err = parse_facility_html(html_input, default_city="Delhi")
+
+        assert err is None
+        assert info is not None
+        # Must preserve meaningful text without inventing arbitrary hospital names
+        assert info.facility_name == "1, Red Cross Road, Sansad Marg Area, New Delhi"
+        assert info.locality == "Sansad Marg Area"
+        assert "Red Cross Road" in info.raw_address
+        # Invariant: Never invent 'Blood Bank', 'Hospital', 'Unknown', or 'Demo'
+        assert "Blood Bank" not in info.facility_name
+        assert "Unknown" not in info.facility_name
+        assert "Demo" not in info.facility_name
+
+    def test_placeholder_variants_rejected_when_no_meaningful_material(self) -> None:
+        placeholder_variants = [
+            "-<br/>--<br/>---",
+            "-<br/>null<br/>-",
+            "-<br/>NULL<br/>-",
+            "-<br/>N/A<br/>-",
+            "-<br/>n/a<br/>-",
+            "-<br/>none<br/>-",
+            "-<br/>undefined<br/>-",
+            "-<br/>.<br/>-",
+            "-<br/>not available<br/>-",
+            "   ",
+        ]
+
+        for variant in placeholder_variants:
+            info, err = parse_facility_html(variant, default_city="Delhi")
+            assert info is None, f"Expected None for placeholder variant '{variant}'"
+            assert err is not None
+            assert (
+                "no parseable facility name" in err
+                or "empty" in err
+                or "missing" in err
+            )
+
+    def test_contact_stripping_with_placeholder_lines(self) -> None:
+        html_input = (
+            "-<br/>Connaught Place Transfusion Centre, Connaught Place, New Delhi<br/>"
+            "Phone: 011-23344556, Fax: 011-23344557<br/>"
+            "Email: contact@cptc.example.org<br/>-"
+        )
+        info, err = parse_facility_html(html_input, default_city="Delhi")
+
+        assert err is None
+        assert info is not None
+        assert info.facility_name == "Connaught Place Transfusion Centre"
+        assert info.locality == "Connaught Place"
+        # Strict contact redaction
+        assert "011-23344556" not in info.raw_address
+        assert "011-23344557" not in info.raw_address
+        assert "contact@cptc.example.org" not in info.raw_address
+        assert "-" not in info.facility_name

@@ -16,10 +16,12 @@ from backend.app.services.eraktkosh.types import NormalizedStockRecord
 
 # Contact-identifying patterns that must be stripped and never logged/retained
 CONTACT_PATTERN: Final[re.Pattern] = re.compile(
-    r"(?i)\b(?:phone|tel|mobile|mob|fax|email|contact|call)\b|"
+    r"(?:[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)|"
     r"(?:(?:\+?\d{1,4}[- ]?)?\(?\d{2,5}\)?[- ]?\d{5,8})|"
-    r"(?:[\w\.-]+@[\w\.-]+\.\w+)"
+    r"\b(?:phone|tel|telephone|mobile|mob|fax|email|contact|call)\b",
+    re.IGNORECASE,
 )
+
 
 # Common pincode regex for Indian postal codes (6 digits)
 PINCODE_PATTERN: Final[re.Pattern] = re.compile(r"\b\d{6}\b")
@@ -28,6 +30,38 @@ PINCODE_PATTERN: Final[re.Pattern] = re.compile(r"\b\d{6}\b")
 LIVE_STOCK_BADGE_INDICATOR: Final[str] = "live_stock"
 FRESHNESS_LIVE_BADGE: Final[str] = "live_stock_badge"
 FRESHNESS_SOURCE_TIMESTAMP: Final[str] = "source_timestamp"
+
+# Placeholders that must never be treated as facility names or addresses
+PLACEHOLDER_VALUES: Final[set[str]] = {
+    "-",
+    "--",
+    "---",
+    ".",
+    "..",
+    "null",
+    "none",
+    "n/a",
+    "na",
+    "nil",
+    "undefined",
+    "not available",
+}
+
+ADDRESS_START_PATTERN: Final[re.Pattern] = re.compile(
+    r"^(?:\d|plot\b|khasra\b|flat\b|shop\b|floor\b|1st\b|2nd\b|3rd\b|first\b|second\b|basement\b|house\b|building\b|room\b|block\b|sector\b|road\b|street\b|lane\b|near\b|opposite\b|opp\b|behind\b|u\d+/)",
+    re.IGNORECASE,
+)
+
+
+def is_placeholder_text(text: str) -> bool:
+    """Check if a string consists solely of placeholder indicators or delimiters."""
+    cleaned = text.strip()
+    if not cleaned:
+        return True
+    if re.fullmatch(r"[\s\-_.,/|:]+", cleaned):
+        return True
+    lower = cleaned.lower()
+    return lower in PLACEHOLDER_VALUES
 
 
 @dataclass(frozen=True)
@@ -156,6 +190,9 @@ def parse_facility_html(
     """Parse facility name, locality, and address from e-RaktKosh HTML.
 
     Strips phone numbers, email addresses, and fax numbers without logging or storing.
+    Skips placeholder lines (e.g. '-', '--', 'null', 'N/A').
+    Preserves meaningful source text without inventing a facility name when the source
+    only provides an address.
 
     Returns:
         tuple[Optional[ParsedFacilityInfo], Optional[str]]: (facility_info, error_message)
@@ -173,31 +210,62 @@ def parse_facility_html(
     standardized = re.sub(r"(?i)<\s*/div\s*>", "\n", standardized)
 
     lines = standardized.split("\n")
-    cleaned_non_contact_lines: list[str] = []
+    sanitized_lines: list[str] = []
 
     for raw_line in lines:
         cleaned_line = clean_html_tags(raw_line)
         if not cleaned_line:
             continue
 
-        # Check for contact information (phone, email, fax, contact numbers)
-        if CONTACT_PATTERN.search(cleaned_line):
-            # Do NOT log or retain contact details
+        # Strip contact information (phone, email, fax, contact numbers)
+        line_no_contact = CONTACT_PATTERN.sub("", cleaned_line).strip(" ,;:-")
+        if not line_no_contact:
             continue
 
-        cleaned_non_contact_lines.append(cleaned_line)
+        # Skip placeholder lines
+        if is_placeholder_text(line_no_contact):
+            continue
 
-    if not cleaned_non_contact_lines:
-        return None, "Facility info HTML contained no parseable facility name or address."
+        sanitized_lines.append(line_no_contact)
 
-    # First non-contact line is the facility name
-    facility_name = cleaned_non_contact_lines[0].strip()
+    if not sanitized_lines:
+        return (
+            None,
+            "Facility info HTML contained no parseable facility name or address.",
+        )
+
+
+    # If multiple non-placeholder lines exist, line 0 is facility name, remainder is address
+    if len(sanitized_lines) > 1:
+        facility_name = sanitized_lines[0].strip(" ,;:-")
+        address_lines = sanitized_lines[1:]
+        raw_address = ", ".join(address_lines).strip(" ,;:-") if address_lines else facility_name
+    else:
+        # Exactly one meaningful line: evaluate whether it starts with a facility name or is address-only
+        single_line = sanitized_lines[0].strip(" ,;:-")
+        parts = [p.strip(" ,;:-") for p in single_line.split(",") if p.strip(" ,;:-")]
+
+        if len(parts) > 1 and not ADDRESS_START_PATTERN.search(parts[0]):
+            # Parts start with a plausible facility name (e.g. "Lady Hardinge Medical College", "Blood Centre main Hospital")
+            if len(parts) > 1 and any(
+                kw in parts[1].lower()
+                for kw in ["campus", "hospital", "institute", "medical", "centre", "center"]
+            ):
+                facility_name = f"{parts[0]}, {parts[1]}"
+                address_parts = parts[2:]
+                raw_address = ", ".join(address_parts).strip(" ,;:-") if address_parts else facility_name
+            else:
+                facility_name = parts[0]
+                address_parts = parts[1:]
+                raw_address = ", ".join(address_parts).strip(" ,;:-") if address_parts else facility_name
+        else:
+            # Source only provided an address or single un-splittable text.
+            # Invariant: Preserve meaningful source text without inventing a facility name.
+            facility_name = single_line
+            raw_address = single_line
+
     if not facility_name:
         return None, "Extracted facility name is empty."
-
-    # Remaining lines form the address
-    address_lines = cleaned_non_contact_lines[1:]
-    raw_address = ", ".join(address_lines) if address_lines else facility_name
 
     # Extract locality candidate
     raw_locality = extract_locality_from_address(raw_address, default_city)
@@ -218,6 +286,7 @@ def parse_facility_html(
         ),
         None,
     )
+
 
 
 def parse_availability_html(

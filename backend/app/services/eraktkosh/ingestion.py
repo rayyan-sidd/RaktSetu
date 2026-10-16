@@ -10,7 +10,10 @@ from sqlalchemy.orm import Session
 from backend.app.core.database import SessionLocal, init_db
 from backend.app.models.blood_bank import BloodBank, StockReport
 from backend.app.services.eraktkosh.client import ERaktKoshClient, ERaktKoshRetrievalError
-from backend.app.services.eraktkosh.identity import generate_facility_source_id
+from backend.app.services.eraktkosh.identity import (
+    _slugify,
+    generate_facility_source_id,
+)
 from backend.app.services.eraktkosh.parser import (
     ParsedResponseResult,
     ParsedRowResult,
@@ -110,6 +113,8 @@ def ingest_eraktkosh_city_payload(
 
     # Group successful rows by deterministic facility ID to handle intra-payload duplicates
     facilities_map: dict[str, list[ParsedRowResult]] = {}
+    ambiguous_facility_ids: set[str] = set()
+
     for row in parsed.successful_rows:
         if row.facility_info is None:
             continue
@@ -117,8 +122,41 @@ def ingest_eraktkosh_city_payload(
             city=row.facility_info.city,
             facility_name=row.facility_info.facility_name,
             locality=row.facility_info.locality,
+            raw_address=row.facility_info.raw_address,
         )
+
+        if fac_id in ambiguous_facility_ids:
+            # Already determined to be ambiguous; skip subsequent occurrences
+            continue
+
+        if fac_id in facilities_map:
+            # Verify that rows sharing fac_id are genuinely the identical facility
+            existing_row = facilities_map[fac_id][0]
+            assert existing_row.facility_info is not None
+
+            same_name = (
+                _slugify(row.facility_info.facility_name)
+                == _slugify(existing_row.facility_info.facility_name)
+            )
+            same_address = (
+                _slugify(row.facility_info.raw_address)
+                == _slugify(existing_row.facility_info.raw_address)
+            )
+
+            if not (same_name and same_address):
+                # Ambiguous collision: different facilities produced the same ID.
+                # Invariant: Never silently merge ambiguous facilities. Flag and reject both.
+                ambiguous_facility_ids.add(fac_id)
+                del facilities_map[fac_id]
+                warnings.append(
+                    f"Ambiguous facility identity collision on '{fac_id}': "
+                    f"conflicting facilities '{existing_row.facility_info.facility_name}' and "
+                    f"'{row.facility_info.facility_name}' were rejected for safety."
+                )
+                continue
+
         facilities_map.setdefault(fac_id, []).append(row)
+
 
     # Telemetry counters
     facilities_created_count = 0
