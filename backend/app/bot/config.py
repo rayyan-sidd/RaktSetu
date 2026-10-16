@@ -2,7 +2,13 @@
 
 import os
 from dataclasses import dataclass
-from typing import Optional
+from pathlib import Path
+from typing import Optional, Union
+
+from dotenv import load_dotenv
+
+REPO_ROOT: Path = Path(__file__).resolve().parents[3]
+DEFAULT_ENV_PATH: Path = REPO_ROOT / ".env"
 
 
 @dataclass
@@ -27,23 +33,32 @@ class BotConfig:
         )
 
 
-def load_bot_config(require_token: bool = True) -> BotConfig:
-    """Load bot configuration from environment variables.
+def load_bot_config(
+    require_token: bool = True,
+    env_file: Optional[Union[Path, str]] = None,
+) -> BotConfig:
+    """Load bot configuration from environment variables and repository-root .env.
 
-    Environment variables (such as TELEGRAM_BOT_TOKEN) must be set in the shell
-    environment prior to launching the process (e.g. via PowerShell `$env:TELEGRAM_BOT_TOKEN="..."`
-    or Bash `export TELEGRAM_BOT_TOKEN="..."`). Standalone Python processes in this project
-    do not automatically read or inject `.env` files into environment variables.
+    Loads the repository-root `.env` file before reading environment variables,
+    resolving the path relative to this source file so startup works when launched
+    from any working directory. Uses `load_dotenv(..., override=False)` so existing
+    shell environment variables take precedence over `.env`.
 
     Args:
         require_token: If True, raises ValueError when TELEGRAM_BOT_TOKEN is missing or blank.
                        If False, allows empty token (useful in offline unit testing).
+        env_file: Optional explicit path to a .env file (primarily for isolated testing).
+                  If None, defaults to the repository-root `.env` file.
     """
+    target_env = Path(env_file) if env_file is not None else DEFAULT_ENV_PATH
+    if target_env.is_file():
+        load_dotenv(dotenv_path=target_env, override=False)
+
     raw_token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
     if require_token and not raw_token:
         raise ValueError(
             "TELEGRAM_BOT_TOKEN environment variable is not set. "
-            "Please provide a valid bot token from @BotFather."
+            "Please provide a valid bot token from @BotFather in your .env or shell environment."
         )
 
     api_base = os.getenv("RAKTSETU_API_BASE_URL", "http://127.0.0.1:8000").strip().rstrip("/")

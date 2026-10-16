@@ -51,7 +51,8 @@ def main() -> None:
         config = load_bot_config(require_token=True)
     except ValueError as exc:
         print(f"Configuration Error: {exc}", file=sys.stderr)
-        print("Environment variables must be set in your shell before running:", file=sys.stderr)
+        print("Configure TELEGRAM_BOT_TOKEN in your .env file or shell environment before running:", file=sys.stderr)
+        print("  .env file: TELEGRAM_BOT_TOKEN=your_token_from_botfather", file=sys.stderr)
         print("  PowerShell: $env:TELEGRAM_BOT_TOKEN=\"your_token_from_botfather\"", file=sys.stderr)
         print("  Bash/Linux: export TELEGRAM_BOT_TOKEN=\"your_token_from_botfather\"", file=sys.stderr)
         sys.exit(1)
