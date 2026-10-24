@@ -99,6 +99,11 @@ export async function fetchBloodBanks(
   })
 
   if (!response.ok) {
+    if (response.status === 404) {
+      throw new Error(
+        'Backend API endpoint not found on this deployment. To connect live data, set VITE_API_BASE_URL to your deployed backend URL.'
+      )
+    }
     let errorDetail = `Request failed with HTTP status ${response.status}`
     try {
       const errorJson = await response.json()
@@ -112,6 +117,13 @@ export async function fetchBloodBanks(
       }
     }
     throw new Error(errorDetail)
+  }
+
+  const contentType = response.headers.get('content-type') || ''
+  if (!contentType.includes('application/json')) {
+    throw new Error(
+      'The API endpoint returned HTML instead of JSON. The backend server is running locally on your computer, not connected to this cloud deployment.'
+    )
   }
 
   const data: BloodBankListResponse = await response.json()

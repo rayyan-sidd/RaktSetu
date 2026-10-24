@@ -264,6 +264,16 @@ Production assets are compiled and validated with TypeScript in `frontend/dist/`
 
 ---
 
+## Cloud Deployment (Render)
+
+For hackathon evaluation and public demo hosting, RaktSetu is configured for zero-cost deployment on Render:
+- **Backend Web Service**: Python 3 runtime, `pip install -r backend/requirements.txt`, `uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT`, health check at `/api/health`.
+- **Frontend Static Site**: Node.js runtime, root `frontend`, build `npm ci && npm run build`, publish directory `dist`.
+- **Database**: Automatic schema migration and deployment snapshot seeding on startup (163 facilities, 110 stock reports) without committing SQLite databases.
+- See the complete step-by-step guide in [docs/RENDER_DEPLOYMENT.md](docs/RENDER_DEPLOYMENT.md).
+
+---
+
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
