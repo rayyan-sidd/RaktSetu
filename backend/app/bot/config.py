@@ -7,6 +7,8 @@ from typing import Optional, Union
 
 from dotenv import load_dotenv
 
+from backend.app.speech.config import GnaniConfig, load_gnani_config
+
 REPO_ROOT: Path = Path(__file__).resolve().parents[3]
 DEFAULT_ENV_PATH: Path = REPO_ROOT / ".env"
 
@@ -20,22 +22,26 @@ class BotConfig:
     web_url: Optional[str] = None
     request_timeout: float = 10.0
     max_facilities: int = 5
+    gnani: Optional[GnaniConfig] = None
 
     def __repr__(self) -> str:
         """Mask bot token in string representation to prevent accidental secret leakage."""
         masked_token = "***" if self.bot_token else "NOT_SET"
+        gnani_desc = repr(self.gnani) if self.gnani else "None"
         return (
             f"BotConfig(bot_token='{masked_token}', "
             f"api_base_url='{self.api_base_url}', "
             f"web_url={self.web_url!r}, "
             f"request_timeout={self.request_timeout}, "
-            f"max_facilities={self.max_facilities})"
+            f"max_facilities={self.max_facilities}, "
+            f"gnani={gnani_desc})"
         )
 
 
 def load_bot_config(
     require_token: bool = True,
     env_file: Optional[Union[Path, str]] = None,
+    load_speech: bool = True,
 ) -> BotConfig:
     """Load bot configuration from environment variables and repository-root .env.
 
@@ -49,6 +55,7 @@ def load_bot_config(
                        If False, allows empty token (useful in offline unit testing).
         env_file: Optional explicit path to a .env file (primarily for isolated testing).
                   If None, defaults to the repository-root `.env` file.
+        load_speech: If True, loads Gnani speech configuration from environment or .env.
     """
     target_env = Path(env_file) if env_file is not None else DEFAULT_ENV_PATH
     if target_env.is_file():
@@ -68,8 +75,15 @@ def load_bot_config(
     raw_web_url = os.getenv("RAKTSETU_WEB_URL", "").strip().rstrip("/")
     web_url = raw_web_url if raw_web_url else None
 
+    gnani_config = (
+        load_gnani_config(require_key=False, env_file=target_env)
+        if load_speech
+        else None
+    )
+
     return BotConfig(
         bot_token=raw_token,
         api_base_url=api_base,
         web_url=web_url,
+        gnani=gnani_config,
     )
