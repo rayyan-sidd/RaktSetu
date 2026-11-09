@@ -1,6 +1,8 @@
-"""Command and callback query handlers for RaktSetu Telegram Bot."""
+"""Command, callback query, and voice message handlers for RaktSetu Telegram Bot."""
 
 import html
+import io
+import logging
 from typing import Optional
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
@@ -15,8 +17,17 @@ from backend.app.bot.formatter import (
     format_empty_results,
     format_help_message,
     format_start_message,
+    format_voice_error_message,
+    format_voice_unconfigured_message,
+    format_voice_unrecognized_message,
 )
 from backend.app.models.blood_bank import SUPPORTED_BLOOD_GROUPS, SUPPORTED_CITIES
+from backend.app.speech.client import GnaniSpeechClient
+from backend.app.speech.exceptions import GnaniError
+from backend.app.speech.query_parser import extract_blood_query
+from backend.app.speech.timbre import format_spoken_discovery_summary
+
+logger = logging.getLogger(__name__)
 
 
 def build_blood_group_keyboard() -> InlineKeyboardMarkup:
@@ -296,3 +307,225 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
                 city=selected_city,
                 is_callback=True,
             )
+
+
+def _resolve_reply_language(
+    transcript: str,
+    detected_code: Optional[str],
+    default_language: str = "hi-IN",
+) -> str:
+    """Choose response TTS language based on detected language or script heuristic."""
+    if detected_code:
+        lower = detected_code.lower()
+        if lower.startswith("hi"):
+            return "hi-IN"
+        if lower.startswith("en"):
+            return "en-IN"
+    if any("\u0900" <= ch <= "\u097f" for ch in transcript):
+        return "hi-IN"
+    if transcript.isascii():
+        return "en-IN"
+    return default_language
+
+
+async def voice_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle incoming Telegram voice notes or audio messages via Gnani Prisma & Timbre."""
+    message = update.effective_message
+    if not message:
+        return
+
+    media = message.voice or message.audio
+    if not media:
+        return
+
+    config: BotConfig = context.bot_data.get("config") or BotConfig(bot_token="")
+    shared_speech_client: Optional[GnaniSpeechClient] = context.bot_data.get("speech_client")
+    owns_client = False
+    speech_client = shared_speech_client
+
+    if speech_client is None and config.gnani and config.gnani.is_configured:
+        speech_client = GnaniSpeechClient(config=config.gnani)
+        owns_client = True
+
+    if speech_client is None or not speech_client.config.is_configured:
+        await message.reply_text(
+            format_voice_unconfigured_message(),
+            reply_markup=build_blood_group_keyboard(),
+            parse_mode=ParseMode.HTML,
+        )
+        return
+
+    try:
+        # 1. Download voice/audio bytes from Telegram
+        tg_file = await context.bot.get_file(media.file_id)
+        raw_audio = await tg_file.download_as_bytearray()
+        audio_bytes = bytes(raw_audio)
+
+        if message.voice:
+            filename = "voice.ogg"
+            content_type = getattr(media, "mime_type", None) or "audio/ogg"
+        else:
+            filename = getattr(media, "file_name", None) or "audio.mp3"
+            content_type = getattr(media, "mime_type", None) or "audio/mpeg"
+
+        # 2. Transcribe audio using Gnani Prisma STT
+        transcription = await speech_client.transcribe_audio(
+            audio_bytes,
+            filename=filename,
+            content_type=content_type,
+        )
+    except GnaniError as exc:
+        logger.warning("Prisma voice transcription error: %s", exc)
+        await message.reply_text(
+            format_voice_error_message(),
+            reply_markup=build_blood_group_keyboard(),
+            parse_mode=ParseMode.HTML,
+        )
+        if owns_client:
+            await speech_client.aclose()
+        return
+    except Exception as exc:
+        logger.exception("Unexpected error processing Telegram voice note: %s", exc)
+        await message.reply_text(
+            format_voice_error_message(),
+            reply_markup=build_blood_group_keyboard(),
+            parse_mode=ParseMode.HTML,
+        )
+        if owns_client:
+            await speech_client.aclose()
+        return
+
+    try:
+        if transcription.is_empty:
+            await message.reply_text(
+                "🎙️ I couldn't hear clear speech in your voice note. "
+                "Please try speaking again or use <code>/find</code>:",
+                reply_markup=build_blood_group_keyboard(),
+                parse_mode=ParseMode.HTML,
+            )
+            return
+
+        parsed = extract_blood_query(transcription.transcript)
+        safe_transcript = html.escape(transcription.transcript)
+
+        # Case 1: Only blood group recognized -> prompt for city
+        if parsed.blood_group and not parsed.city:
+            await message.reply_text(
+                f"🗣️ <b>Heard:</b> \"<i>{safe_transcript}</i>\"\n"
+                f"🩸 Detected Blood Group: <b>{html.escape(parsed.blood_group)}</b>\n"
+                "Now choose target city:",
+                reply_markup=build_city_keyboard(parsed.blood_group),
+                parse_mode=ParseMode.HTML,
+            )
+            return
+
+        # Case 2: Only city recognized (or neither) -> prompt for blood group
+        if not parsed.blood_group:
+            if parsed.city:
+                city_disp = html.escape(parsed.city if parsed.city != "All" else "Delhi & Lucknow")
+                await message.reply_text(
+                    f"🗣️ <b>Heard:</b> \"<i>{safe_transcript}</i>\"\n"
+                    f"📍 Detected City: <b>{city_disp}</b>\n"
+                    "Please choose the required blood group below:",
+                    reply_markup=build_blood_group_keyboard(),
+                    parse_mode=ParseMode.HTML,
+                )
+            else:
+                await message.reply_text(
+                    format_voice_unrecognized_message(transcription.transcript),
+                    reply_markup=build_blood_group_keyboard(),
+                    parse_mode=ParseMode.HTML,
+                )
+            return
+
+        # Case 3: Both blood group and city extracted -> query Discovery API
+        grp_display = html.escape(parsed.blood_group if parsed.blood_group != "All" else "All Groups")
+        city_display = html.escape(parsed.city if parsed.city != "All" else "Delhi & Lucknow")
+        await message.reply_text(
+            f"🗣️ <b>Heard:</b> \"<i>{safe_transcript}</i>\"\n"
+            f"⏳ Searching e-RaktKosh records for <b>{grp_display}</b> in <b>{city_display}</b>...",
+            parse_mode=ParseMode.HTML,
+        )
+
+        api_client: DiscoveryApiClient = context.bot_data.get("api_client") or DiscoveryApiClient(
+            base_url=config.api_base_url,
+            timeout=config.request_timeout,
+        )
+        query_city = None if parsed.city in (None, "All") else parsed.city
+        query_group = None if parsed.blood_group in (None, "All") else parsed.blood_group
+
+        try:
+            response = await api_client.get_blood_banks(city=query_city, blood_group=query_group)
+            facilities, total_count = api_client.filter_and_rank_facilities(
+                response,
+                blood_group=query_group,
+                max_facilities=config.max_facilities,
+            )
+
+            if not facilities:
+                text_reply = format_empty_results(
+                    blood_group=parsed.blood_group,
+                    city=parsed.city,
+                    web_url=config.web_url,
+                )
+            else:
+                text_reply = format_discovery_results(
+                    facilities=facilities,
+                    total_count=total_count,
+                    blood_group=parsed.blood_group,
+                    city=parsed.city,
+                    web_url=config.web_url,
+                )
+        except DiscoveryApiError:
+            await message.reply_text(
+                format_api_error_message(),
+                parse_mode=ParseMode.HTML,
+                disable_web_page_preview=True,
+            )
+            return
+        except Exception:
+            await message.reply_text(
+                format_api_error_message(),
+                parse_mode=ParseMode.HTML,
+                disable_web_page_preview=True,
+            )
+            return
+
+        await message.reply_text(
+            text_reply,
+            parse_mode=ParseMode.HTML,
+            disable_web_page_preview=True,
+        )
+
+        # 3. Synthesize spoken voice summary with Gnani Timbre TTS (best-effort)
+        reply_lang = _resolve_reply_language(
+            transcription.transcript,
+            transcription.detected_language_code,
+            default_language=speech_client.config.tts_language,
+        )
+        fac_dicts = [f.model_dump() for f in facilities]
+        spoken_text = format_spoken_discovery_summary(
+            facilities=fac_dicts,
+            total_count=total_count,
+            blood_group=parsed.blood_group,
+            city=parsed.city,
+            language=reply_lang,
+        )
+
+        try:
+            tts_result = await speech_client.synthesize_speech(
+                text=spoken_text,
+                language=reply_lang,
+            )
+            await message.reply_voice(
+                voice=io.BytesIO(tts_result.audio_bytes),
+                filename=tts_result.filename,
+                caption="🔊 Spoken summary (unverified reported stock — verify directly with hospital)",
+            )
+        except GnaniError as exc:
+            logger.warning("Timbre TTS synthesis failed (text response already sent): %s", exc)
+        except Exception as exc:
+            logger.warning("Unexpected error sending Telegram voice reply: %s", exc)
+    finally:
+        if owns_client:
+            await speech_client.aclose()

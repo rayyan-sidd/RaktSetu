@@ -217,3 +217,33 @@ def format_api_error_message() -> str:
         "• Contact your nearest hospital emergency department directly to check physical blood availability.\n"
         "• For life-threatening emergencies, dial <b>112</b> (India's national general emergency number; note: this is general emergency assistance, not a blood bank helpline)."
     )
+
+
+def format_voice_unconfigured_message() -> str:
+    """Format message when voice search is unavailable due to missing Gnani configuration."""
+    return (
+        "🎙️ <b>Voice Search Not Configured</b>\n\n"
+        "Speech recognition is currently disabled on this bot instance.\n"
+        "You can still search immediately using text commands or interactive buttons:\n"
+        "• Send <code>/find O+ Delhi</code>\n"
+        "• Or choose a blood group below:"
+    )
+
+
+def format_voice_error_message() -> str:
+    """Format user-safe message when speech transcription fails."""
+    return (
+        "⚠️ <b>Could Not Process Voice Message</b>\n\n"
+        "Unable to transcribe your audio note right now.\n"
+        "Please try sending a clearer voice message, or search directly using <code>/find</code>:"
+    )
+
+
+def format_voice_unrecognized_message(transcript: str) -> str:
+    """Format message when speech was transcribed but lacks blood group and city."""
+    safe_transcript = html.escape(transcript)
+    return (
+        f"🗣️ <b>Heard:</b> \"<i>{safe_transcript}</i>\"\n\n"
+        "I couldn't identify both a blood group and target city (Delhi or Lucknow).\n"
+        "Try saying something like <i>\"O positive in Delhi\"</i> or choose a blood group below:"
+    )
