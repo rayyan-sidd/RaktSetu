@@ -45,6 +45,7 @@ def format_start_message(web_url: Optional[str] = None) -> str:
         "<b>Available Commands:</b>\n"
         "• <code>/find</code> — Launch guided interactive blood search\n"
         "• <code>/find &lt;group&gt; &lt;city&gt;</code> — Quick search (e.g. <code>/find O+ Delhi</code>)\n"
+        "• 🎙️ <b>Voice Note</b> — Speak in English or Hindi (e.g. <i>\"Need O+ in Delhi\"</i>)\n"
         "• <code>/help</code> — Detailed instructions &amp; emergency helplines\n"
         f"{url_section}"
     )
@@ -61,7 +62,8 @@ def format_help_message(web_url: Optional[str] = None) -> str:
         "   Examples:\n"
         "   • <code>/find O+ Delhi</code>\n"
         "   • <code>/find A- Lucknow</code>\n"
-        "   • <code>/find B+ All</code>\n\n"
+        "   • <code>/find B+ All</code>\n"
+        "3. <b>Voice Note:</b> Send a voice message in English or Hindi (e.g. <i>\"Delhi mein O positive blood chahiye\"</i>).\n\n"
         "<b>Supported Blood Groups:</b> A+, A-, B+, B-, AB+, AB-, O+, O-\n"
         "<b>Supported Cities:</b> Delhi, Lucknow, All\n\n"
         "<b>Data Provenance &amp; Verification:</b>\n"

@@ -264,6 +264,39 @@ Production assets are compiled and validated with TypeScript in `frontend/dist/`
 
 ---
 
+## Telegram Discovery Bot & Gnani AI Speech Integration
+
+RaktSetu includes a Telegram discovery bot (`backend/app/bot/`) with optional multilingual voice search powered by **Gnani AI (Vachana AI)**:
+
+- **Prisma Speech-to-Text (`prisma-v3.0`)**: Transcribes incoming Telegram voice notes and audio messages in English, Hindi, and Hinglish, extracting ABO/Rh blood group and target city via a deterministic parser (`backend/app/speech/query_parser.py`).
+- **Timbre Text-to-Speech (`timbre-v3.0`)**: Generates natural spoken discovery summaries (`ogg`/`oggopus`) in Indian English or Hindi alongside clinical HTML text responses, always preserving mandatory medical verification disclaimers.
+- **Graceful Fallback**: If `GNANI_API_KEY` is omitted, the bot runs in text and inline-keyboard discovery mode (`/find`) without failing; if TTS fails, text results are still delivered reliably.
+
+### Running the Bot
+
+Configure environment variables in `.env` (see `.env.example`):
+
+```ini
+TELEGRAM_BOT_TOKEN=your_telegram_bot_token
+RAKTSETU_API_BASE_URL=http://127.0.0.1:8000
+
+# Optional: enable Gnani AI voice search
+GNANI_API_KEY=your_gnani_api_key
+GNANI_STT_MODEL=prisma-v3.0
+GNANI_STT_LANGUAGE_CODE=indic-auto
+GNANI_TTS_MODEL=timbre-v3.0
+GNANI_TTS_VOICE=Nalini
+GNANI_TTS_LANGUAGE=hi-IN
+```
+
+Start the Telegram bot polling process:
+
+```bash
+.\.venv\Scripts\python.exe -m backend.app.bot.main
+```
+
+---
+
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
