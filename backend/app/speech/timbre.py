@@ -1,7 +1,7 @@
 """Timbre Text-to-Speech (TTS) models and spoken summary helpers."""
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 
 @dataclass
@@ -44,6 +44,52 @@ class TimbreAudioConfig:
         return f"raktsetu_reply.{ext}"
 
 
+def is_valid_ogg_opus(audio_bytes: bytes) -> bool:
+    """Return True if bytes start with a valid Ogg BOS page carrying an OpusHead packet."""
+    if len(audio_bytes) < 36 or not audio_bytes.startswith(b"OggS"):
+        return False
+    if audio_bytes[4] != 0:
+        return False
+    num_segments = audio_bytes[26]
+    payload_offset = 27 + num_segments
+    if num_segments < 1 or len(audio_bytes) < payload_offset + 8:
+        return False
+    return audio_bytes[payload_offset : payload_offset + 8] == b"OpusHead"
+
+
+def inspect_audio_format(
+    audio_bytes: bytes,
+    content_type_hint: str = "",
+) -> Tuple[str, str, str, bool]:
+    """Identify the actual audio container from magic bytes without trusting request config.
+
+    Returns:
+        Tuple of (container, content_type, filename, is_ogg_opus).
+    """
+    if is_valid_ogg_opus(audio_bytes):
+        return ("ogg", "audio/ogg", "raktsetu_reply.ogg", True)
+
+    if len(audio_bytes) >= 12 and audio_bytes[:4] == b"RIFF" and audio_bytes[8:12] == b"WAVE":
+        return ("wav", "audio/wav", "raktsetu_reply.wav", False)
+
+    if audio_bytes.startswith(b"ID3") or (
+        len(audio_bytes) >= 2
+        and audio_bytes[0] == 0xFF
+        and (audio_bytes[1] & 0xE0) == 0xE0
+        and (audio_bytes[1] & 0x06) == 0x02
+    ):
+        return ("mp3", "audio/mpeg", "raktsetu_reply.mp3", False)
+
+    hint = content_type_hint.lower().split(";")[0].strip()
+    if hint in ("audio/wav", "audio/x-wav", "audio/wave"):
+        return ("wav", "audio/wav", "raktsetu_reply.wav", False)
+    if hint in ("audio/mpeg", "audio/mp3"):
+        return ("mp3", "audio/mpeg", "raktsetu_reply.mp3", False)
+
+    safe_ct = hint if hint and "ogg" not in hint else "application/octet-stream"
+    return ("unknown", safe_ct, "raktsetu_reply.bin", False)
+
+
 @dataclass
 class TimbreSynthesisResult:
     """Encapsulates synthesized speech audio returned by Gnani Timbre TTS."""
@@ -52,6 +98,11 @@ class TimbreSynthesisResult:
     content_type: str
     container: str
     filename: str
+    is_ogg_opus: Optional[bool] = None
+
+    def __post_init__(self) -> None:
+        actual = is_valid_ogg_opus(self.audio_bytes)
+        self.is_ogg_opus = actual if self.is_ogg_opus is None else (bool(self.is_ogg_opus) and actual)
 
 
 def _sanitize_spoken_text(text: str) -> str:

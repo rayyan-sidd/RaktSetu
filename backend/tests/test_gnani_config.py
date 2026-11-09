@@ -7,6 +7,8 @@ from tempfile import TemporaryDirectory
 
 from backend.app.speech.config import (
     DEFAULT_GNANI_BASE_URL,
+    DEFAULT_MAX_AUDIO_BYTES,
+    DEFAULT_MAX_AUDIO_DURATION_SECONDS,
     DEFAULT_REQUEST_TIMEOUT,
     DEFAULT_STT_FORMAT,
     DEFAULT_STT_LANGUAGE_CODE,
@@ -32,11 +34,13 @@ def test_gnani_config_defaults() -> None:
     assert cfg.stt_model == DEFAULT_STT_MODEL
     assert cfg.stt_language_code == DEFAULT_STT_LANGUAGE_CODE
     assert cfg.stt_format == DEFAULT_STT_FORMAT
-    assert cfg.tts_model == DEFAULT_TTS_MODEL
-    assert cfg.tts_voice == DEFAULT_TTS_VOICE
+    assert cfg.tts_model == DEFAULT_TTS_MODEL == "timbre-v3.0"
+    assert cfg.tts_voice == DEFAULT_TTS_VOICE == "Shivani"
     assert cfg.tts_language == DEFAULT_TTS_LANGUAGE
     assert cfg.tts_speed == DEFAULT_TTS_SPEED
     assert cfg.request_timeout == DEFAULT_REQUEST_TIMEOUT
+    assert cfg.max_audio_bytes == DEFAULT_MAX_AUDIO_BYTES
+    assert cfg.max_audio_duration_seconds == DEFAULT_MAX_AUDIO_DURATION_SECONDS
 
 
 def test_gnani_config_auth_key_precedence() -> None:
@@ -74,6 +78,8 @@ def test_load_gnani_config_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("GNANI_TTS_LANGUAGE", "en-IN")
     monkeypatch.setenv("GNANI_TTS_SPEED", "1.25")
     monkeypatch.setenv("GNANI_REQUEST_TIMEOUT", "25.0")
+    monkeypatch.setenv("GNANI_MAX_AUDIO_BYTES", "1048576")
+    monkeypatch.setenv("GNANI_MAX_AUDIO_DURATION_SECONDS", "45")
 
     cfg = load_gnani_config(require_key=True)
     assert cfg.api_key == "test-gnani-api-key"
@@ -89,6 +95,8 @@ def test_load_gnani_config_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
     assert cfg.tts_language == "en-IN"
     assert cfg.tts_speed == 1.25
     assert cfg.request_timeout == 25.0
+    assert cfg.max_audio_bytes == 1048576
+    assert cfg.max_audio_duration_seconds == 45
 
 
 def test_load_gnani_config_require_key_raises(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -107,6 +115,8 @@ def test_load_gnani_config_invalid_numbers_fallback(monkeypatch: pytest.MonkeyPa
     """Verify invalid numeric env variables safely fall back to defaults."""
     monkeypatch.setenv("GNANI_TTS_SPEED", "invalid-float")
     monkeypatch.setenv("GNANI_REQUEST_TIMEOUT", "-5.0")
+    monkeypatch.setenv("GNANI_MAX_AUDIO_BYTES", "not-an-int")
+    monkeypatch.setenv("GNANI_MAX_AUDIO_DURATION_SECONDS", "0")
 
     with TemporaryDirectory() as tmpdir:
         dummy_env = Path(tmpdir) / ".env"
@@ -114,6 +124,8 @@ def test_load_gnani_config_invalid_numbers_fallback(monkeypatch: pytest.MonkeyPa
         cfg = load_gnani_config(require_key=False, env_file=dummy_env)
         assert cfg.tts_speed == DEFAULT_TTS_SPEED
         assert cfg.request_timeout == DEFAULT_REQUEST_TIMEOUT
+        assert cfg.max_audio_bytes == DEFAULT_MAX_AUDIO_BYTES
+        assert cfg.max_audio_duration_seconds == DEFAULT_MAX_AUDIO_DURATION_SECONDS
 
 
 def test_bot_config_includes_gnani_config(monkeypatch: pytest.MonkeyPatch) -> None:

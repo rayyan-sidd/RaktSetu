@@ -14,6 +14,15 @@ from backend.app.speech.client import GnaniSpeechClient
 from backend.app.speech.config import GnaniConfig
 
 
+_VALID_OGG_OPUS_E2E = (
+    b"OggS\x00\x02"
+    + b"\x00" * 20
+    + bytes([1, 19])
+    + b"OpusHead\x01\x01\x38\x01\x80\xbb\x00\x00\x00\x00\x00"
+    + b"e2e-audio-response"
+)
+
+
 @pytest.mark.anyio
 async def test_end_to_end_voice_discovery_pipeline() -> None:
     """Verify full pipeline from Telegram voice note through Gnani STT, Discovery API, and Gnani TTS."""
@@ -39,13 +48,14 @@ async def test_end_to_end_voice_discovery_pipeline() -> None:
             payload = json.loads(request.content.decode("utf-8"))
             assert payload["language"] == "en-IN"
             assert payload["model"] == "timbre-v3.0"
+            assert payload["voice"] == "Shivani"
             assert "King George Medical University" in payload["text"]
             assert "B negative" in payload["text"]
             assert "Always call and confirm" in payload["text"]
             return httpx.Response(
                 200,
                 headers={"content-type": "audio/ogg"},
-                content=b"OggS-e2e-audio-response",
+                content=_VALID_OGG_OPUS_E2E,
             )
 
         return httpx.Response(404)
@@ -111,7 +121,12 @@ async def test_end_to_end_voice_discovery_pipeline() -> None:
     bot.get_file = AsyncMock(return_value=tg_file)
 
     message = MagicMock()
-    message.voice = MagicMock(file_id="tg-voice-99", mime_type="audio/ogg")
+    message.voice = MagicMock(
+        file_id="tg-voice-99",
+        mime_type="audio/ogg",
+        file_size=1024,
+        duration=4,
+    )
     message.audio = None
     message.reply_text = AsyncMock()
     message.reply_voice = AsyncMock()
@@ -144,5 +159,78 @@ async def test_end_to_end_voice_discovery_pipeline() -> None:
 
     message.reply_voice.assert_awaited_once()
     voice_call = message.reply_voice.call_args.kwargs
-    assert voice_call["voice"].read() == b"OggS-e2e-audio-response"
+    assert voice_call["voice"].read() == _VALID_OGG_OPUS_E2E
     assert voice_call["filename"] == "raktsetu_reply.ogg"
+
+
+@pytest.mark.anyio
+async def test_end_to_end_non_ogg_tts_preserves_text_and_skips_reply_voice() -> None:
+    """When Gnani TTS returns WAV bytes despite OGG request, text results send safely and reply_voice is skipped."""
+    wav_bytes = b"RIFF\x24\x00\x00\x00WAVEfmt \x10\x00\x00\x00fake-wav-body"
+
+    def gnani_handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/stt/v3":
+            return httpx.Response(
+                200,
+                json={"success": True, "transcript": "Need O-positive blood in Delhi"},
+            )
+        if request.url.path == "/api/v1/tts/inference":
+            return httpx.Response(
+                200,
+                headers={"content-type": "audio/ogg"},
+                content=wav_bytes,
+            )
+        return httpx.Response(404)
+
+    def discovery_handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "items": [],
+                "count": 0,
+                "data_notice": "e-RaktKosh notice",
+                "data_timestamp": "2026-10-16T06:15:00Z",
+            },
+        )
+
+    gnani_http = httpx.AsyncClient(
+        base_url="https://api.vachana.ai",
+        transport=httpx.MockTransport(gnani_handler),
+    )
+    gnani_cfg = GnaniConfig(api_key="e2e-gnani-key")
+    speech_client = GnaniSpeechClient(config=gnani_cfg, http_client=gnani_http)
+    api_client = DiscoveryApiClient(
+        base_url="http://127.0.0.1:8000",
+        transport=httpx.MockTransport(discovery_handler),
+    )
+
+    tg_file = MagicMock()
+    tg_file.download_as_bytearray = AsyncMock(return_value=bytearray(b"voice-sample"))
+    bot = MagicMock()
+    bot.get_file = AsyncMock(return_value=tg_file)
+
+    message = MagicMock()
+    message.voice = MagicMock(file_id="v2", mime_type="audio/ogg", file_size=512, duration=3)
+    message.audio = None
+    message.reply_text = AsyncMock()
+    message.reply_voice = AsyncMock()
+
+    update = MagicMock(spec=Update)
+    update.effective_message = message
+
+    context = MagicMock()
+    context.bot = bot
+    context.bot_data = {
+        "config": BotConfig(bot_token="tok", gnani=gnani_cfg),
+        "api_client": api_client,
+        "speech_client": speech_client,
+    }
+
+    try:
+        await voice_message_handler(update, context)
+    finally:
+        await gnani_http.aclose()
+
+    assert message.reply_text.await_count == 2
+    assert "No Reported Facilities Found" in message.reply_text.call_args_list[1].args[0]
+    message.reply_voice.assert_not_awaited()

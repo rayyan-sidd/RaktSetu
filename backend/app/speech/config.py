@@ -16,10 +16,12 @@ DEFAULT_STT_LANGUAGE_CODE: str = "indic-auto"
 DEFAULT_STT_FORMAT: str = "transcribe"
 
 DEFAULT_TTS_MODEL: str = "timbre-v3.0"
-DEFAULT_TTS_VOICE: str = "Nalini"
+DEFAULT_TTS_VOICE: str = "Shivani"
 DEFAULT_TTS_LANGUAGE: str = "hi-IN"
 DEFAULT_TTS_SPEED: float = 1.0
 DEFAULT_REQUEST_TIMEOUT: float = 15.0
+DEFAULT_MAX_AUDIO_BYTES: int = 5 * 1024 * 1024
+DEFAULT_MAX_AUDIO_DURATION_SECONDS: int = 60
 
 
 @dataclass
@@ -37,6 +39,8 @@ class GnaniConfig:
     tts_language: str = DEFAULT_TTS_LANGUAGE
     tts_speed: float = DEFAULT_TTS_SPEED
     request_timeout: float = DEFAULT_REQUEST_TIMEOUT
+    max_audio_bytes: int = DEFAULT_MAX_AUDIO_BYTES
+    max_audio_duration_seconds: int = DEFAULT_MAX_AUDIO_DURATION_SECONDS
 
     @property
     def is_configured(self) -> bool:
@@ -63,7 +67,9 @@ class GnaniConfig:
             f"tts_voice='{self.tts_voice}', "
             f"tts_language='{self.tts_language}', "
             f"tts_speed={self.tts_speed}, "
-            f"request_timeout={self.request_timeout})"
+            f"request_timeout={self.request_timeout}, "
+            f"max_audio_bytes={self.max_audio_bytes}, "
+            f"max_audio_duration_seconds={self.max_audio_duration_seconds})"
         )
 
 
@@ -119,6 +125,25 @@ def load_gnani_config(
     except ValueError:
         request_timeout = DEFAULT_REQUEST_TIMEOUT
 
+    max_bytes_raw = os.getenv("GNANI_MAX_AUDIO_BYTES", str(DEFAULT_MAX_AUDIO_BYTES)).strip()
+    try:
+        max_audio_bytes = int(max_bytes_raw)
+        if max_audio_bytes <= 0:
+            max_audio_bytes = DEFAULT_MAX_AUDIO_BYTES
+    except ValueError:
+        max_audio_bytes = DEFAULT_MAX_AUDIO_BYTES
+
+    max_duration_raw = os.getenv(
+        "GNANI_MAX_AUDIO_DURATION_SECONDS",
+        str(DEFAULT_MAX_AUDIO_DURATION_SECONDS),
+    ).strip()
+    try:
+        max_audio_duration_seconds = int(max_duration_raw)
+        if max_audio_duration_seconds <= 0:
+            max_audio_duration_seconds = DEFAULT_MAX_AUDIO_DURATION_SECONDS
+    except ValueError:
+        max_audio_duration_seconds = DEFAULT_MAX_AUDIO_DURATION_SECONDS
+
     return GnaniConfig(
         api_key=api_key,
         api_key_id=api_key_id,
@@ -131,4 +156,6 @@ def load_gnani_config(
         tts_language=tts_language,
         tts_speed=tts_speed,
         request_timeout=request_timeout,
+        max_audio_bytes=max_audio_bytes,
+        max_audio_duration_seconds=max_audio_duration_seconds,
     )

@@ -26,6 +26,14 @@ from backend.app.speech.exceptions import (
 from backend.app.speech.prisma import PrismaTranscriptionResult
 from backend.app.speech.timbre import TimbreSynthesisResult
 
+_VALID_OGG_OPUS = (
+    b"OggS\x00\x02"
+    + b"\x00" * 20
+    + bytes([1, 19])
+    + b"OpusHead\x01\x01\x38\x01\x80\xbb\x00\x00\x00\x00\x00"
+    + b"synthesized-opus-payload"
+)
+
 
 @pytest.fixture
 def sample_discovery_response() -> BloodBankListResponse:
@@ -67,6 +75,8 @@ def _make_voice_update(
     is_audio: bool = False,
     mime_type: str = "audio/ogg",
     file_name: str = "clip.mp3",
+    file_size: int | None = 1024,
+    duration: int | None = 5,
 ) -> tuple[Update, MagicMock]:
     """Create mocked Telegram Update with voice or audio message."""
     update = MagicMock(spec=Update)
@@ -77,6 +87,8 @@ def _make_voice_update(
     media = MagicMock()
     media.file_id = file_id
     media.mime_type = mime_type
+    media.file_size = file_size
+    media.duration = duration
     if is_audio:
         media.file_name = file_name
         message.voice = None
@@ -154,10 +166,11 @@ async def test_voice_handler_full_english_flow(
     )
     speech_client.synthesize_speech = AsyncMock(
         return_value=TimbreSynthesisResult(
-            audio_bytes=b"OggS-synthesized-reply",
+            audio_bytes=_VALID_OGG_OPUS,
             content_type="audio/ogg",
             container="ogg",
             filename="raktsetu_reply.ogg",
+            is_ogg_opus=True,
         )
     )
 
@@ -197,7 +210,7 @@ async def test_voice_handler_full_english_flow(
     message.reply_voice.assert_awaited_once()
     voice_kwargs = message.reply_voice.call_args.kwargs
     assert voice_kwargs["filename"] == "raktsetu_reply.ogg"
-    assert voice_kwargs["voice"].read() == b"OggS-synthesized-reply"
+    assert voice_kwargs["voice"].read() == _VALID_OGG_OPUS
 
 
 @pytest.mark.anyio
@@ -217,10 +230,11 @@ async def test_voice_handler_hindi_audio_flow(
     )
     speech_client.synthesize_speech = AsyncMock(
         return_value=TimbreSynthesisResult(
-            audio_bytes=b"hindi-ogg",
+            audio_bytes=_VALID_OGG_OPUS,
             content_type="audio/ogg",
             container="ogg",
             filename="raktsetu_reply.ogg",
+            is_ogg_opus=True,
         )
     )
 
@@ -350,3 +364,104 @@ def test_build_bot_application_registers_voice_handler_and_speech_client() -> No
 
     handlers = app.handlers.get(0, [])
     assert any(isinstance(h, MessageHandler) for h in handlers)
+
+
+@pytest.mark.anyio
+async def test_voice_handler_rejects_oversized_or_long_audio_before_download() -> None:
+    """Enforce configurable size and duration guards prior to downloading Telegram media."""
+    # 1. Over-duration pre-download guard
+    u_long, m_long = _make_voice_update(duration=120, file_size=2048)
+    c_long = _make_context(speech_configured=True)
+    c_long.bot_data["speech_client"].config.max_audio_duration_seconds = 30
+    await voice_message_handler(u_long, c_long)
+    c_long.bot.get_file.assert_not_awaited()
+    m_long.reply_text.assert_awaited_once()
+    assert "Too Long" in m_long.reply_text.call_args.args[0]
+
+    # 2. Oversized pre-download guard
+    u_big, m_big = _make_voice_update(duration=10, file_size=10 * 1024 * 1024)
+    c_big = _make_context(speech_configured=True)
+    c_big.bot_data["speech_client"].config.max_audio_bytes = 5 * 1024 * 1024
+    await voice_message_handler(u_big, c_big)
+    c_big.bot.get_file.assert_not_awaited()
+    m_big.reply_text.assert_awaited_once()
+    assert "Too Large" in m_big.reply_text.call_args.args[0]
+
+    # 3. Missing metadata file_size, post-download byte cap guard before STT
+    u_meta, m_meta = _make_voice_update(duration=None, file_size=None)
+    c_meta = _make_context(speech_configured=True, downloaded_bytes=b"x" * 2048)
+    c_meta.bot_data["speech_client"].config.max_audio_bytes = 1024
+    await voice_message_handler(u_meta, c_meta)
+    c_meta.bot.get_file.assert_awaited_once()
+    c_meta.bot_data["speech_client"].transcribe_audio.assert_not_awaited()
+    m_meta.reply_text.assert_awaited_once()
+    assert "Too Large" in m_meta.reply_text.call_args.args[0]
+
+
+@pytest.mark.anyio
+async def test_voice_handler_skips_non_ogg_opus_tts_preserving_text_reply(
+    sample_discovery_response: BloodBankListResponse,
+) -> None:
+    """When Timbre returns non-OGG-Opus audio (e.g. WAV or invalid stream), keep text and skip reply_voice."""
+    for result in (
+        TimbreSynthesisResult(
+            audio_bytes=b"RIFF\x24\x00\x00\x00WAVEfmt \x10\x00\x00\x00pcm",
+            content_type="audio/wav",
+            container="wav",
+            filename="raktsetu_reply.wav",
+            is_ogg_opus=False,
+        ),
+        TimbreSynthesisResult(
+            audio_bytes=b"OggS-not-real-opus",
+            content_type="audio/ogg",
+            container="ogg",
+            filename="raktsetu_reply.ogg",
+            is_ogg_opus=True,  # __post_init__ must catch non-Opus bytes and set False
+        ),
+    ):
+        update, message = _make_voice_update()
+        context = _make_context(speech_configured=True)
+        context.bot_data["speech_client"].transcribe_audio = AsyncMock(
+            return_value=PrismaTranscriptionResult(transcript="O+ in Delhi")
+        )
+        context.bot_data["speech_client"].synthesize_speech = AsyncMock(return_value=result)
+        context.bot_data["api_client"].get_blood_banks = AsyncMock(
+            return_value=sample_discovery_response
+        )
+        context.bot_data["api_client"].filter_and_rank_facilities = MagicMock(
+            return_value=([sample_discovery_response.items[0]], 1)
+        )
+
+        await voice_message_handler(update, context)
+
+        assert message.reply_text.await_count == 2
+        assert "AIIMS Main Blood Bank" in message.reply_text.call_args_list[1].args[0]
+        message.reply_voice.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_voice_handler_clarifies_ambiguous_groups_and_negated_city() -> None:
+    """Ambiguous blood groups or negated cities must trigger interactive clarification, never guess."""
+    # Ambiguous blood group
+    u_grp, m_grp = _make_voice_update()
+    c_grp = _make_context(speech_configured=True)
+    c_grp.bot_data["speech_client"].transcribe_audio = AsyncMock(
+        return_value=PrismaTranscriptionResult(transcript="O+ or A+ blood in Delhi")
+    )
+    await voice_message_handler(u_grp, c_grp)
+    c_grp.bot_data["api_client"].get_blood_banks.assert_not_called()
+    m_grp.reply_text.assert_awaited_once()
+    assert "Multiple blood groups" in m_grp.reply_text.call_args.args[0]
+    assert isinstance(m_grp.reply_text.call_args.kwargs["reply_markup"], InlineKeyboardMarkup)
+
+    # Negated / contradictory city with clear blood group -> prompt city keyboard, never query All
+    u_city, m_city = _make_voice_update()
+    c_city = _make_context(speech_configured=True)
+    c_city.bot_data["speech_client"].transcribe_audio = AsyncMock(
+        return_value=PrismaTranscriptionResult(transcript="Not Delhi, I want Lucknow O+")
+    )
+    await voice_message_handler(u_city, c_city)
+    c_city.bot_data["api_client"].get_blood_banks.assert_not_called()
+    m_city.reply_text.assert_awaited_once()
+    assert "Detected Blood Group: <b>O+</b>" in m_city.reply_text.call_args.args[0]
+    assert isinstance(m_city.reply_text.call_args.kwargs["reply_markup"], InlineKeyboardMarkup)

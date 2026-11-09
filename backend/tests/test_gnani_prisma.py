@@ -82,6 +82,23 @@ async def test_transcribe_audio_v25_minimal_payload() -> None:
 
 
 @pytest.mark.anyio
+async def test_transcribe_audio_null_fields_produce_empty_transcript() -> None:
+    """Regression: explicit JSON null transcript/text must yield empty string, never 'None'."""
+    t_null = httpx.MockTransport(
+        lambda req: httpx.Response(
+            200,
+            json={"success": True, "transcript": None, "text": None},
+        )
+    )
+    async with httpx.AsyncClient(base_url="https://api.vachana.ai", transport=t_null) as hc:
+        client = GnaniSpeechClient(config=GnaniConfig(api_key="test-key"), http_client=hc)
+        result = await client.transcribe_audio(b"silent-audio")
+
+    assert result.transcript == ""
+    assert result.is_empty is True
+
+
+@pytest.mark.anyio
 async def test_transcribe_audio_empty_bytes_raises() -> None:
     """Verify empty audio payload fails fast without network call."""
     client = GnaniSpeechClient(config=GnaniConfig(api_key="test-key"))
@@ -164,3 +181,50 @@ def test_extract_blood_query_variants(
     parsed = extract_blood_query(transcript)
     assert parsed.blood_group == expected_group
     assert parsed.city == expected_city
+
+
+@pytest.mark.parametrize(
+    "transcript, expected_group, expected_city, expected_ambiguous_groups, expected_ambiguous_city",
+    [
+        # Review examples & Hinglish queries
+        ("Mujhe O positive blood chahiye Delhi mein", "O+", "Delhi", (), False),
+        ("Lucknow mein B negative chahiye", "B-", "Lucknow", (), False),
+        ("Mujhe blood chahiye", None, None, (), False),
+        ("O positive chahiye", "O+", None, (), False),
+        ("Delhi mein blood bank batao", None, "Delhi", (), False),
+        ("AB positive blood chahiye Lucknow", "AB+", "Lucknow", (), False),
+        # Hyphenated positive groups must not misclassify as Rh-negative
+        ("O-positive blood in Delhi", "O+", "Delhi", (), False),
+        ("A-positive needed in Lucknow", "A+", "Lucknow", (), False),
+        ("B-positive in Delhi", "B+", "Delhi", (), False),
+        ("AB-positive in Lucknow", "AB+", "Lucknow", (), False),
+        # False positives rejected
+        ("I have a positive test in Delhi", None, "Delhi", (), False),
+        ("There was a negative report in Lucknow", None, "Lucknow", (), False),
+        ("Always be positive in Delhi", None, "Delhi", (), False),
+        ("Can it be positive in Lucknow?", None, "Lucknow", (), False),
+        ("A-grade blood bank in Delhi", None, "Delhi", (), False),
+        # Contradictory or multiple blood groups -> clarify instead of guessing
+        ("O+ or A+ blood in Delhi", None, "Delhi", ("O+", "A+"), False),
+        ("O positive, no wait O negative in Delhi", None, "Delhi", ("O+", "O-"), False),
+        ("I want A+ not AB+ in Lucknow", None, "Lucknow", ("A+", "AB+"), False),
+        # Negated or corrected cities must not collapse into All
+        ("Not Delhi, I want Lucknow O+", "O+", None, (), True),
+        ("Need O+ in Delhi not Lucknow", "O+", None, (), True),
+        ("Delhi, not Lucknow B negative", "B-", None, (), True),
+        ("Delhi ya Lucknow mein O positive chahiye", "O+", "All", (), False),
+    ],
+)
+def test_extract_blood_query_regression_and_ambiguity(
+    transcript: str,
+    expected_group: str | None,
+    expected_city: str | None,
+    expected_ambiguous_groups: tuple[str, ...],
+    expected_ambiguous_city: bool,
+) -> None:
+    """Verify hyphenated Rh+, false-positive suppression, and fail-closed ambiguity flags."""
+    parsed = extract_blood_query(transcript)
+    assert parsed.blood_group == expected_group
+    assert parsed.city == expected_city
+    assert parsed.ambiguous_blood_groups == expected_ambiguous_groups
+    assert parsed.ambiguous_city is expected_ambiguous_city

@@ -19,7 +19,11 @@ from backend.app.speech.exceptions import (
     TimbreSynthesisError,
 )
 from backend.app.speech.prisma import PrismaTranscriptionResult
-from backend.app.speech.timbre import TimbreAudioConfig, TimbreSynthesisResult
+from backend.app.speech.timbre import (
+    TimbreAudioConfig,
+    TimbreSynthesisResult,
+    inspect_audio_format,
+)
 
 
 class GnaniSpeechClient:
@@ -106,6 +110,10 @@ class GnaniSpeechClient:
         """
         if not audio_bytes:
             raise PrismaTranscriptionError("Cannot transcribe empty audio payload.")
+        if len(audio_bytes) > self.config.max_audio_bytes:
+            raise PrismaTranscriptionError(
+                f"Audio payload exceeds maximum allowed size ({self.config.max_audio_bytes} bytes)."
+            )
 
         headers = self._get_headers()
         files = {
@@ -143,12 +151,13 @@ class GnaniSpeechClient:
             err_msg = payload.get("message") or str(payload.get("detail") or "Transcription failed")
             raise PrismaTranscriptionError(f"Prisma STT failed: {err_msg}")
 
-        transcript = payload.get("transcript")
-        if transcript is None:
-            transcript = payload.get("text", "")
+        raw_transcript = payload.get("transcript")
+        if raw_transcript is None:
+            raw_transcript = payload.get("text")
+        transcript = str(raw_transcript).strip() if raw_transcript is not None else ""
 
         return PrismaTranscriptionResult(
-            transcript=str(transcript).strip(),
+            transcript=transcript,
             detected_language_code=payload.get("detected_language_code"),
             request_id=payload.get("request_id"),
             processing_time=payload.get("processing_time"),
@@ -168,7 +177,7 @@ class GnaniSpeechClient:
 
         Args:
             text: Text content to synthesize into spoken audio.
-            voice: Override configured Timbre voice (e.g. 'Nalini').
+            voice: Override configured Timbre voice (e.g. 'Shivani').
             model: Override configured Timbre model (e.g. 'timbre-v3.0', 'timbre-v2.5').
             language: Override target language code (e.g. 'hi-IN', 'en-IN').
             speed: Override speaking speed multiplier (default 1.0).
@@ -238,11 +247,16 @@ class GnaniSpeechClient:
         if not audio_bytes:
             raise TimbreSynthesisError("Timbre TTS returned empty audio bytes.")
 
+        container, verified_ct, filename, is_ogg_opus = inspect_audio_format(
+            audio_bytes,
+            content_type_hint=resolved_ct,
+        )
         return TimbreSynthesisResult(
             audio_bytes=audio_bytes,
-            content_type=resolved_ct,
-            container=effective_audio.container,
-            filename=effective_audio.default_filename,
+            content_type=verified_ct,
+            container=container,
+            filename=filename,
+            is_ogg_opus=is_ogg_opus,
         )
 
     async def aclose(self) -> None:

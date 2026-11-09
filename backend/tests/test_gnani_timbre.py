@@ -16,7 +16,20 @@ from backend.app.speech.exceptions import (
 from backend.app.speech.timbre import (
     TimbreAudioConfig,
     format_spoken_discovery_summary,
+    inspect_audio_format,
+    is_valid_ogg_opus,
 )
+
+
+def _make_minimal_ogg_opus(suffix: bytes = b"") -> bytes:
+    """Build minimal RFC 7845 Ogg BOS header containing OpusHead identification packet."""
+    bos_header = (
+        b"OggS\x00\x02"
+        + b"\x00" * 20
+        + bytes([1, 19])
+        + b"OpusHead\x01\x01\x38\x01\x80\xbb\x00\x00\x00\x00\x00"
+    )
+    return bos_header + suffix
 
 
 def test_timbre_audio_config_serialization() -> None:
@@ -52,8 +65,9 @@ def test_timbre_audio_config_serialization() -> None:
 
 @pytest.mark.anyio
 async def test_synthesize_speech_binary_success() -> None:
-    """Verify Timbre TTS sends expected JSON request and returns binary audio bytes."""
+    """Verify Timbre TTS sends expected JSON request and validates OGG Opus bytes."""
     captured: dict = {}
+    valid_ogg = _make_minimal_ogg_opus(b"encoded-opus-frames")
 
     def handler(request: httpx.Request) -> httpx.Response:
         captured["url"] = str(request.url)
@@ -62,7 +76,7 @@ async def test_synthesize_speech_binary_success() -> None:
         return httpx.Response(
             200,
             headers={"content-type": "audio/ogg"},
-            content=b"OggS-fake-opus-stream-bytes",
+            content=valid_ogg,
         )
 
     transport = httpx.MockTransport(handler)
@@ -73,28 +87,28 @@ async def test_synthesize_speech_binary_success() -> None:
         )
         result = await client.synthesize_speech(
             text="Found 2 blood banks in Delhi.",
-            voice="Nalini",
             language="en-IN",
         )
 
     assert captured["url"] == "https://api.vachana.ai/api/v1/tts/inference"
     assert captured["headers"]["x-api-key-id"] == "timbre-key"
     assert captured["body"]["text"] == "Found 2 blood banks in Delhi."
-    assert captured["body"]["voice"] == "Nalini"
+    assert captured["body"]["voice"] == "Shivani"
     assert captured["body"]["model"] == "timbre-v3.0"
     assert captured["body"]["language"] == "en-IN"
     assert captured["body"]["audio_config"]["container"] == "ogg"
 
-    assert result.audio_bytes == b"OggS-fake-opus-stream-bytes"
+    assert result.audio_bytes == valid_ogg
     assert result.content_type == "audio/ogg"
     assert result.container == "ogg"
     assert result.filename == "raktsetu_reply.ogg"
+    assert result.is_ogg_opus is True
 
 
 @pytest.mark.anyio
 async def test_synthesize_speech_base64_json_fallback() -> None:
     """Verify Timbre TTS handles JSON base64-wrapped audio payloads."""
-    raw_audio = b"RIFF-fake-wav-data"
+    raw_audio = b"RIFF\x24\x00\x00\x00WAVEfmt \x10\x00\x00\x00fake-wav-data"
     encoded = base64.b64encode(raw_audio).decode("ascii")
 
     transport = httpx.MockTransport(
@@ -112,7 +126,67 @@ async def test_synthesize_speech_base64_json_fallback() -> None:
 
     assert result.audio_bytes == raw_audio
     assert result.content_type == "audio/wav"
+    assert result.container == "wav"
     assert result.filename == "raktsetu_reply.wav"
+    assert result.is_ogg_opus is False
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "payload_bytes, server_ct, expected_container, expected_ct, expected_filename",
+    [
+        (
+            b"RIFF\x24\x00\x00\x00WAVEfmt \x10\x00\x00\x00pcm",
+            "audio/ogg",
+            "wav",
+            "audio/wav",
+            "raktsetu_reply.wav",
+        ),
+        (
+            b"ID3\x03\x00\x00\x00\x00\x00\x00mp3data",
+            "audio/ogg",
+            "mp3",
+            "audio/mpeg",
+            "raktsetu_reply.mp3",
+        ),
+        (
+            b"OggS\x00\x02" + b"\x00" * 20 + bytes([1, 7]) + b"\x01vorbis\x00\x00",
+            "audio/ogg",
+            "unknown",
+            "application/octet-stream",
+            "raktsetu_reply.bin",
+        ),
+        (
+            b"arbitrary-unknown-binary-blob",
+            "audio/ogg",
+            "unknown",
+            "application/octet-stream",
+            "raktsetu_reply.bin",
+        ),
+    ],
+)
+async def test_synthesize_speech_never_mislabels_non_ogg_opus_as_ogg(
+    payload_bytes: bytes,
+    server_ct: str,
+    expected_container: str,
+    expected_ct: str,
+    expected_filename: str,
+) -> None:
+    """Verify WAV, MP3, non-Opus OGG, or unknown bytes never receive .ogg / is_ogg_opus=True."""
+    transport = httpx.MockTransport(
+        lambda req: httpx.Response(200, headers={"content-type": server_ct}, content=payload_bytes)
+    )
+    async with httpx.AsyncClient(base_url="https://api.vachana.ai", transport=transport) as hc:
+        client = GnaniSpeechClient(config=GnaniConfig(api_key="k"), http_client=hc)
+        result = await client.synthesize_speech("Hello in Delhi")
+
+    assert result.is_ogg_opus is False
+    assert result.container == expected_container
+    assert result.content_type == expected_ct
+    assert result.filename == expected_filename
+    assert not result.filename.endswith(".ogg")
+    assert is_valid_ogg_opus(payload_bytes) is False
+    assert inspect_audio_format(payload_bytes, server_ct)[3] is False
 
 
 @pytest.mark.anyio

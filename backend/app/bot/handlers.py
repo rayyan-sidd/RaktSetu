@@ -25,7 +25,7 @@ from backend.app.models.blood_bank import SUPPORTED_BLOOD_GROUPS, SUPPORTED_CITI
 from backend.app.speech.client import GnaniSpeechClient
 from backend.app.speech.exceptions import GnaniError
 from backend.app.speech.query_parser import extract_blood_query
-from backend.app.speech.timbre import format_spoken_discovery_summary
+from backend.app.speech.timbre import format_spoken_discovery_summary, is_valid_ogg_opus
 
 logger = logging.getLogger(__name__)
 
@@ -328,6 +328,14 @@ def _resolve_reply_language(
     return default_language
 
 
+def _format_audio_size_limit(max_bytes: int) -> str:
+    """Return human-readable label for configured byte limit."""
+    max_mb = max_bytes / (1024 * 1024)
+    if max_mb >= 1:
+        return f"{max_mb:.1f} MB"
+    return f"{max(1, max_bytes // 1024)} KB"
+
+
 async def voice_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle incoming Telegram voice notes or audio messages via Gnani Prisma & Timbre."""
     message = update.effective_message
@@ -356,46 +364,87 @@ async def voice_message_handler(update: Update, context: ContextTypes.DEFAULT_TY
         return
 
     try:
-        # 1. Download voice/audio bytes from Telegram
-        tg_file = await context.bot.get_file(media.file_id)
-        raw_audio = await tg_file.download_as_bytearray()
-        audio_bytes = bytes(raw_audio)
+        max_bytes = speech_client.config.max_audio_bytes
+        max_duration = speech_client.config.max_audio_duration_seconds
+        media_duration = getattr(media, "duration", None)
+        media_size = getattr(media, "file_size", None)
 
-        if message.voice:
-            filename = "voice.ogg"
-            content_type = getattr(media, "mime_type", None) or "audio/ogg"
-        else:
-            filename = getattr(media, "file_name", None) or "audio.mp3"
-            content_type = getattr(media, "mime_type", None) or "audio/mpeg"
+        if (
+            isinstance(media_duration, (int, float))
+            and not isinstance(media_duration, bool)
+            and media_duration > max_duration
+        ):
+            await message.reply_text(
+                f"⚠️ <b>Voice Message Too Long</b>\n\n"
+                f"Please keep voice notes within <b>{max_duration} seconds</b>, "
+                "or search directly using <code>/find</code>:",
+                reply_markup=build_blood_group_keyboard(),
+                parse_mode=ParseMode.HTML,
+            )
+            return
 
-        # 2. Transcribe audio using Gnani Prisma STT
-        transcription = await speech_client.transcribe_audio(
-            audio_bytes,
-            filename=filename,
-            content_type=content_type,
-        )
-    except GnaniError as exc:
-        logger.warning("Prisma voice transcription error: %s", exc)
-        await message.reply_text(
-            format_voice_error_message(),
-            reply_markup=build_blood_group_keyboard(),
-            parse_mode=ParseMode.HTML,
-        )
-        if owns_client:
-            await speech_client.aclose()
-        return
-    except Exception as exc:
-        logger.exception("Unexpected error processing Telegram voice note: %s", exc)
-        await message.reply_text(
-            format_voice_error_message(),
-            reply_markup=build_blood_group_keyboard(),
-            parse_mode=ParseMode.HTML,
-        )
-        if owns_client:
-            await speech_client.aclose()
-        return
+        if (
+            isinstance(media_size, int)
+            and not isinstance(media_size, bool)
+            and media_size > max_bytes
+        ):
+            size_label = _format_audio_size_limit(max_bytes)
+            await message.reply_text(
+                f"⚠️ <b>Audio File Too Large</b>\n\n"
+                f"Please send a voice note smaller than <b>{size_label}</b>, "
+                "or search directly using <code>/find</code>:",
+                reply_markup=build_blood_group_keyboard(),
+                parse_mode=ParseMode.HTML,
+            )
+            return
 
-    try:
+        try:
+            # 1. Download voice/audio bytes from Telegram
+            tg_file = await context.bot.get_file(media.file_id)
+            raw_audio = await tg_file.download_as_bytearray()
+            audio_bytes = bytes(raw_audio)
+
+            if len(audio_bytes) > max_bytes:
+                size_label = _format_audio_size_limit(max_bytes)
+                await message.reply_text(
+                    f"⚠️ <b>Audio File Too Large</b>\n\n"
+                    f"Please send a voice note smaller than <b>{size_label}</b>, "
+                    "or search directly using <code>/find</code>:",
+                    reply_markup=build_blood_group_keyboard(),
+                    parse_mode=ParseMode.HTML,
+                )
+                return
+
+            if message.voice:
+                filename = "voice.ogg"
+                content_type = getattr(media, "mime_type", None) or "audio/ogg"
+            else:
+                filename = getattr(media, "file_name", None) or "audio.mp3"
+                content_type = getattr(media, "mime_type", None) or "audio/mpeg"
+
+            # 2. Transcribe audio using Gnani Prisma STT
+            transcription = await speech_client.transcribe_audio(
+                audio_bytes,
+                filename=filename,
+                content_type=content_type,
+            )
+        except GnaniError as exc:
+            logger.warning("Prisma voice transcription error: %s", exc)
+            await message.reply_text(
+                format_voice_error_message(),
+                reply_markup=build_blood_group_keyboard(),
+                parse_mode=ParseMode.HTML,
+            )
+            return
+        except Exception as exc:
+            logger.exception("Unexpected error processing Telegram voice note: %s", exc)
+            await message.reply_text(
+                format_voice_error_message(),
+                reply_markup=build_blood_group_keyboard(),
+                parse_mode=ParseMode.HTML,
+            )
+            return
+
         if transcription.is_empty:
             await message.reply_text(
                 "🎙️ I couldn't hear clear speech in your voice note. "
@@ -408,20 +457,39 @@ async def voice_message_handler(update: Update, context: ContextTypes.DEFAULT_TY
         parsed = extract_blood_query(transcription.transcript)
         safe_transcript = html.escape(transcription.transcript)
 
-        # Case 1: Only blood group recognized -> prompt for city
+        # Case 1: Blood group unambiguous, city missing or ambiguous -> prompt for city
         if parsed.blood_group and not parsed.city:
+            city_prompt = (
+                "Multiple or negated cities mentioned. Please confirm the target city below:"
+                if parsed.ambiguous_city
+                else "Now choose target city:"
+            )
             await message.reply_text(
                 f"🗣️ <b>Heard:</b> \"<i>{safe_transcript}</i>\"\n"
                 f"🩸 Detected Blood Group: <b>{html.escape(parsed.blood_group)}</b>\n"
-                "Now choose target city:",
+                f"{city_prompt}",
                 reply_markup=build_city_keyboard(parsed.blood_group),
                 parse_mode=ParseMode.HTML,
             )
             return
 
-        # Case 2: Only city recognized (or neither) -> prompt for blood group
+        # Case 2: Blood group missing or ambiguous -> clarify via blood group keyboard
         if not parsed.blood_group:
-            if parsed.city:
+            if parsed.ambiguous_blood_groups:
+                groups_disp = ", ".join(html.escape(g) for g in parsed.ambiguous_blood_groups)
+                city_note = (
+                    f"\n📍 Detected City: <b>{html.escape(parsed.city if parsed.city != 'All' else 'Delhi & Lucknow')}</b>"
+                    if parsed.city
+                    else ""
+                )
+                await message.reply_text(
+                    f"🗣️ <b>Heard:</b> \"<i>{safe_transcript}</i>\"{city_note}\n"
+                    f"❓ Multiple blood groups mentioned (<b>{groups_disp}</b>).\n"
+                    "Please choose the exact blood group you need below:",
+                    reply_markup=build_blood_group_keyboard(),
+                    parse_mode=ParseMode.HTML,
+                )
+            elif parsed.city:
                 city_disp = html.escape(parsed.city if parsed.city != "All" else "Delhi & Lucknow")
                 await message.reply_text(
                     f"🗣️ <b>Heard:</b> \"<i>{safe_transcript}</i>\"\n"
@@ -438,7 +506,7 @@ async def voice_message_handler(update: Update, context: ContextTypes.DEFAULT_TY
                 )
             return
 
-        # Case 3: Both blood group and city extracted -> query Discovery API
+        # Case 3: Both blood group and city unambiguously extracted -> query Discovery API
         grp_display = html.escape(parsed.blood_group if parsed.blood_group != "All" else "All Groups")
         city_display = html.escape(parsed.city if parsed.city != "All" else "Delhi & Lucknow")
         await message.reply_text(
@@ -497,7 +565,7 @@ async def voice_message_handler(update: Update, context: ContextTypes.DEFAULT_TY
             disable_web_page_preview=True,
         )
 
-        # 3. Synthesize spoken voice summary with Gnani Timbre TTS (best-effort)
+        # 3. Synthesize spoken voice summary with Gnani Timbre TTS (best-effort, OGG Opus only)
         reply_lang = _resolve_reply_language(
             transcription.transcript,
             transcription.detected_language_code,
@@ -517,11 +585,20 @@ async def voice_message_handler(update: Update, context: ContextTypes.DEFAULT_TY
                 text=spoken_text,
                 language=reply_lang,
             )
-            await message.reply_voice(
-                voice=io.BytesIO(tts_result.audio_bytes),
-                filename=tts_result.filename,
-                caption="🔊 Spoken summary (unverified reported stock — verify directly with hospital)",
-            )
+            if not (tts_result.is_ogg_opus and is_valid_ogg_opus(tts_result.audio_bytes)):
+                logger.warning(
+                    "Skipping Telegram voice reply: Timbre TTS did not return valid OGG Opus "
+                    "(container=%s, content_type=%s, filename=%s).",
+                    tts_result.container,
+                    tts_result.content_type,
+                    tts_result.filename,
+                )
+            else:
+                await message.reply_voice(
+                    voice=io.BytesIO(tts_result.audio_bytes),
+                    filename=tts_result.filename,
+                    caption="🔊 Spoken summary (unverified reported stock — verify directly with hospital)",
+                )
         except GnaniError as exc:
             logger.warning("Timbre TTS synthesis failed (text response already sent): %s", exc)
         except Exception as exc:
