@@ -1,5 +1,6 @@
 """Base HTTP client for Gnani AI speech API."""
 
+import base64
 from types import TracebackType
 from typing import Any, Dict, Optional, Type
 
@@ -15,8 +16,10 @@ from backend.app.speech.exceptions import (
     GnaniRateLimitError,
     GnaniTimeoutError,
     PrismaTranscriptionError,
+    TimbreSynthesisError,
 )
 from backend.app.speech.prisma import PrismaTranscriptionResult
+from backend.app.speech.timbre import TimbreAudioConfig, TimbreSynthesisResult
 
 
 class GnaniSpeechClient:
@@ -150,6 +153,96 @@ class GnaniSpeechClient:
             request_id=payload.get("request_id"),
             processing_time=payload.get("processing_time"),
             raw_response=payload,
+        )
+
+    async def synthesize_speech(
+        self,
+        text: str,
+        voice: Optional[str] = None,
+        model: Optional[str] = None,
+        language: Optional[str] = None,
+        speed: Optional[float] = None,
+        audio_config: Optional[TimbreAudioConfig] = None,
+    ) -> TimbreSynthesisResult:
+        """Synthesize spoken audio from text using Gnani Timbre TTS.
+
+        Args:
+            text: Text content to synthesize into spoken audio.
+            voice: Override configured Timbre voice (e.g. 'Nalini').
+            model: Override configured Timbre model (e.g. 'timbre-v3.0', 'timbre-v2.5').
+            language: Override target language code (e.g. 'hi-IN', 'en-IN').
+            speed: Override speaking speed multiplier (default 1.0).
+            audio_config: Audio container and encoding configuration.
+        """
+        cleaned_text = (text or "").strip()
+        if not cleaned_text:
+            raise TimbreSynthesisError("Cannot synthesize speech from empty text.")
+
+        effective_audio = audio_config or TimbreAudioConfig()
+        headers = self._get_headers(content_type="application/json")
+        body: Dict[str, Any] = {
+            "text": cleaned_text,
+            "voice": voice or self.config.tts_voice,
+            "model": model or self.config.tts_model,
+            "language": language or self.config.tts_language,
+            "speed": speed if speed is not None else self.config.tts_speed,
+            "audio_config": effective_audio.to_dict(),
+        }
+
+        try:
+            response = await self.client.post(
+                "/api/v1/tts/inference",
+                headers=headers,
+                json=body,
+            )
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            mapped = self._map_http_error(exc)
+            if type(mapped) is GnaniApiError:
+                raise TimbreSynthesisError(mapped.message, status_code=mapped.status_code) from exc
+            raise mapped from exc
+        except httpx.HTTPError as exc:
+            raise self._map_http_error(exc) from exc
+
+        resp_ct = response.headers.get("content-type", "").lower()
+        audio_bytes: bytes
+
+        if "application/json" in resp_ct:
+            try:
+                data = response.json()
+            except ValueError as exc:
+                raise TimbreSynthesisError(f"Invalid JSON payload from Timbre TTS: {exc}") from exc
+
+            if isinstance(data, dict) and data.get("success") is False:
+                err_msg = data.get("message") or str(data.get("detail") or "TTS synthesis failed")
+                raise TimbreSynthesisError(f"Timbre TTS failed: {err_msg}")
+
+            b64_audio = (
+                data.get("audio")
+                or data.get("audio_base64")
+                or data.get("audio_content")
+                if isinstance(data, dict)
+                else None
+            )
+            if not b64_audio or not isinstance(b64_audio, str):
+                raise TimbreSynthesisError("Timbre TTS returned JSON without audio data.")
+            try:
+                audio_bytes = base64.b64decode(b64_audio)
+            except Exception as exc:
+                raise TimbreSynthesisError(f"Failed to decode base64 audio from Timbre TTS: {exc}") from exc
+            resolved_ct = effective_audio.default_content_type
+        else:
+            audio_bytes = response.content
+            resolved_ct = resp_ct or effective_audio.default_content_type
+
+        if not audio_bytes:
+            raise TimbreSynthesisError("Timbre TTS returned empty audio bytes.")
+
+        return TimbreSynthesisResult(
+            audio_bytes=audio_bytes,
+            content_type=resolved_ct,
+            container=effective_audio.container,
+            filename=effective_audio.default_filename,
         )
 
     async def aclose(self) -> None:

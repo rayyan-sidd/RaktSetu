@@ -15,12 +15,20 @@ from backend.app.speech.exceptions import (
 )
 from backend.app.speech.prisma import PrismaTranscriptionResult
 from backend.app.speech.query_parser import ExtractedBloodQuery, extract_blood_query
+from backend.app.speech.timbre import (
+    TimbreAudioConfig,
+    TimbreSynthesisResult,
+    format_spoken_discovery_summary,
+)
 
 __all__ = [
     "GnaniConfig",
     "load_gnani_config",
     "GnaniSpeechClient",
     "PrismaTranscriptionResult",
+    "TimbreAudioConfig",
+    "TimbreSynthesisResult",
+    "format_spoken_discovery_summary",
     "ExtractedBloodQuery",
     "extract_blood_query",
     "GnaniError",
